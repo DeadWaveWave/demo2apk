@@ -1,0 +1,57 @@
+# Development overrides for Docker Compose
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# This config:
+#   - Enables mock builds for faster iteration
+#   - Disables rate limiting
+#   - Mounts source code for hot reload
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+      target: builder
+    command: ["pnpm", "dev", "--host", "0.0.0.0"]
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./packages/frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://api:3000
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: builder
+    command: ["pnpm", "--filter", "@demo2apk/backend", "dev"]
+    environment:
+      - NODE_ENV=development
+      - MOCK_BUILD=true
+      - RATE_LIMIT_ENABLED=false
+      - RATE_LIMIT_MAX=100
+      - FILE_RETENTION_HOURS=24
+    volumes:
+      - ./packages:/app/packages
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml
+      - builds:/app/builds
+      - uploads:/app/uploads
+
+  worker:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: builder
+    command: ["pnpm", "--filter", "@demo2apk/backend", "worker"]
+    environment:
+      - NODE_ENV=development
+      - MOCK_BUILD=true
+      - FILE_RETENTION_HOURS=24
+    volumes:
+      - ./packages:/app/packages
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml
+      - builds:/app/builds
+      - uploads:/app/uploads

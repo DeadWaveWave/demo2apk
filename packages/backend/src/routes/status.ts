@@ -1,0 +1,203 @@
+import { FastifyPluginAsync } from 'fastify';
+import path from 'path';
+import fs from 'fs-extra';
+import { getJobStatus, getJob, removeJob } from '../services/queue.js';
+import { apkExists, getApkSize, cleanupTask } from '../services/storage.js';
+import type { ServerConfig } from '../index.js';
+
+interface StatusRouteOptions {
+  config: ServerConfig;
+}
+
+interface TaskParams {
+  taskId: string;
+}
+
+export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fastify, options) => {
+  const { config } = options;
+
+  /**
+   * GET /api/build/:taskId/status
+   * Get build task status
+   */
+  fastify.get<{
+    Params: TaskParams;
+  }>('/:taskId/status', async (request, reply) => {
+    const { taskId } = request.params;
+
+    const jobStatus = await getJobStatus(config.redisUrl, taskId);
+
+    if (jobStatus.status === 'not_found') {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: `Task ${taskId} not found`,
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      taskId,
+      status: jobStatus.status,
+    };
+
+    if (jobStatus.progress) {
+      response.progress = jobStatus.progress;
+    }
+
+    if (jobStatus.status === 'completed' && jobStatus.result) {
+      response.result = {
+        success: jobStatus.result.success,
+        duration: jobStatus.result.duration,
+      };
+
+      if (jobStatus.result.success && jobStatus.result.apkPath) {
+        response.downloadUrl = `/api/build/${taskId}/download`;
+        response.apkSize = await getApkSize(jobStatus.result.apkPath).catch(() => 0);
+      } else if (jobStatus.result.error) {
+        response.error = jobStatus.result.error;
+      }
+    }
+
+    if (jobStatus.status === 'failed') {
+      response.error = jobStatus.error;
+    }
+
+    return response;
+  });
+
+  /**
+   * GET /api/build/:taskId/download
+   * Download built APK
+   */
+  fastify.get<{
+    Params: TaskParams;
+  }>('/:taskId/download', async (request, reply) => {
+    const { taskId } = request.params;
+
+    const jobStatus = await getJobStatus(config.redisUrl, taskId);
+
+    if (jobStatus.status === 'not_found') {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: `Task ${taskId} not found`,
+      });
+    }
+
+    if (jobStatus.status !== 'completed') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: `Task ${taskId} is not completed yet. Current status: ${jobStatus.status}`,
+      });
+    }
+
+    if (!jobStatus.result?.success || !jobStatus.result.apkPath) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Build failed, no APK available for download',
+      });
+    }
+
+    const apkPath = jobStatus.result.apkPath;
+
+    if (!(await apkExists(apkPath))) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'APK file not found. It may have been cleaned up.',
+      });
+    }
+
+    const filename = path.basename(apkPath);
+    
+    return reply
+      .header('Content-Type', 'application/vnd.android.package-archive')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(fs.createReadStream(apkPath));
+  });
+
+  /**
+   * DELETE /api/build/:taskId
+   * Cancel or cleanup a build task
+   */
+  fastify.delete<{
+    Params: TaskParams;
+  }>('/:taskId', async (request, reply) => {
+    const { taskId } = request.params;
+
+    const job = await getJob(config.redisUrl, taskId);
+
+    if (!job) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: `Task ${taskId} not found`,
+      });
+    }
+
+    const state = await job.getState();
+
+    if (state === 'active') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Cannot cancel a task that is currently building. Please wait for it to complete.',
+      });
+    }
+
+    // Get app name for cleanup
+    const appName = job.data.appName;
+
+    // Remove job from queue
+    const removed = await removeJob(config.redisUrl, taskId);
+
+    if (!removed) {
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to remove task from queue',
+      });
+    }
+
+    // Cleanup files
+    await cleanupTask(taskId, appName, { buildsDir: config.buildsDir });
+
+    fastify.log.info({ taskId }, 'Task deleted');
+
+    return {
+      message: `Task ${taskId} has been deleted`,
+      taskId,
+    };
+  });
+
+  /**
+   * GET /api/build/:taskId/logs
+   * Get build logs (if available)
+   */
+  fastify.get<{
+    Params: TaskParams;
+  }>('/:taskId/logs', async (request, reply) => {
+    const { taskId } = request.params;
+
+    const jobStatus = await getJobStatus(config.redisUrl, taskId);
+
+    if (jobStatus.status === 'not_found') {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: `Task ${taskId} not found`,
+      });
+    }
+
+    // For now, just return progress history
+    // In a full implementation, you might store logs in Redis or a file
+    const response: Record<string, unknown> = {
+      taskId,
+      status: jobStatus.status,
+    };
+
+    if (jobStatus.progress) {
+      response.currentProgress = jobStatus.progress;
+    }
+
+    if (jobStatus.error) {
+      response.error = jobStatus.error;
+    }
+
+    return response;
+  });
+};
+

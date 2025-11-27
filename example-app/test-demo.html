@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试 App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 20px;
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 600px;
+            animation: fadeIn 1s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-weight: bold;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+        }
+        
+        .counter {
+            font-size: 4em;
+            margin: 30px 0;
+            font-weight: bold;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease;
+        }
+        
+        .info {
+            margin-top: 50px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .info-item {
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Vibe Coding Demo</h1>
+        <p>一个简单的 HTML 测试应用</p>
+        
+        <div class="counter" id="counter">0</div>
+        
+        <button class="button" onclick="incrementCounter()">点击计数</button>
+        
+        <div class="info">
+            <div class="info-item">📱 <strong>设备:</strong> <span id="device">检测中...</span></div>
+            <div class="info-item">🌐 <strong>浏览器:</strong> <span id="browser">检测中...</span></div>
+            <div class="info-item">⏰ <strong>时间:</strong> <span id="time">--:--:--</span></div>
+        </div>
+    </div>
+    
+    <script>
+        let count = 0;
+        
+        function incrementCounter() {
+            count++;
+            document.getElementById('counter').textContent = count;
+            
+            // 添加动画效果
+            const counter = document.getElementById('counter');
+            counter.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                counter.style.transform = 'scale(1)';
+            }, 200);
+        }
+        
+        // 检测设备信息
+        function detectDevice() {
+            const ua = navigator.userAgent;
+            let device = 'Desktop';
+            
+            if (/Android/i.test(ua)) {
+                device = 'Android';
+            } else if (/iPhone|iPad|iPod/i.test(ua)) {
+                device = 'iOS';
+            } else if (/Windows/i.test(ua)) {
+                device = 'Windows';
+            } else if (/Mac/i.test(ua)) {
+                device = 'macOS';
+            } else if (/Linux/i.test(ua)) {
+                device = 'Linux';
+            }
+            
+            document.getElementById('device').textContent = device;
+        }
+        
+        // 检测浏览器
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            let browser = 'Unknown';
+            
+            if (/Chrome/i.test(ua) && !/Edge/i.test(ua)) {
+                browser = 'Chrome';
+            } else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) {
+                browser = 'Safari';
+            } else if (/Firefox/i.test(ua)) {
+                browser = 'Firefox';
+            } else if (/Edge/i.test(ua)) {
+                browser = 'Edge';
+            }
+            
+            document.getElementById('browser').textContent = browser;
+        }
+        
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN');
+            document.getElementById('time').textContent = timeStr;
+        }
+        
+        // 初始化函数
+        function initApp() {
+            detectDevice();
+            detectBrowser();
+            updateTime();
+            setInterval(updateTime, 1000);
+        }
+        
+        // 等待 Cordova 准备好，如果不是 Cordova 环境则直接初始化
+        if (window.cordova) {
+            document.addEventListener('deviceready', initApp, false);
+        } else {
+            // 浏览器环境直接初始化
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initApp);
+            } else {
+                initApp();
+            }
+        }
+    </script>
+</body>
+</html>

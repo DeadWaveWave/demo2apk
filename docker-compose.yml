@@ -1,0 +1,112 @@
+# Demo2APK Docker Compose Configuration
+#
+# Services:
+#   - frontend: Web UI (Nginx)
+#   - api: Main API server
+#   - worker: Background job processor
+#   - redis: Job queue and cache
+#
+# Usage:
+#   Development:  docker-compose up -d
+#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   Logs:         docker-compose logs -f
+#   Stop:         docker-compose down
+
+services:
+  # Frontend Web UI
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - HOST=0.0.0.0
+      - REDIS_URL=redis://redis:6379
+      - BUILDS_DIR=/app/builds
+      - UPLOADS_DIR=/app/uploads
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-52428800}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-5}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-1 hour}
+      - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
+      - MOCK_BUILD=${MOCK_BUILD:-false}
+    volumes:
+      - builds:/app/builds
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Background Worker
+  worker:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    command: ["node", "packages/backend/dist/worker.js"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - REDIS_URL=redis://redis:6379
+      - BUILDS_DIR=/app/builds
+      - UPLOADS_DIR=/app/uploads
+      - MOCK_BUILD=${MOCK_BUILD:-false}
+      - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-2}
+    volumes:
+      - builds:/app/builds
+      - uploads:/app/uploads
+      - gradle-cache:/root/.gradle
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  builds:
+    driver: local
+  uploads:
+    driver: local
+  redis-data:
+    driver: local
+  gradle-cache:
+    driver: local
+
+networks:
+  default:
+    name: demo2apk-network

@@ -1,3 +1,5 @@
+![Demo2APK](assets/image.png)
+
 # Demo2APK 🚀
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -6,7 +8,7 @@
 
 **将你的 Vibe Coding 创意瞬间转化为可运行的 Android App。**
 
-> 💡 **使用场景**：当你在 **Gemini**, **Claude**, **v0** 等平台构建了自己的 demo，想要将其下载到自己的手机上时，可以用该项目非常便捷地将文件打包成 APK 安装使用！
+> 💡 **使用场景**：当你在 **Gemini**, **ChatGPT**, **DeepSeek**, **Qwen** 等平台构建了自己的 demo，想要将其下载到自己的手机上时，可以用该项目非常便捷地将文件打包成 APK 安装使用！
 
 Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是有了一个绝妙的 HTML 原型，还是完成了一个 React 前端项目，只需上传文件，我们就能立刻为你生成可安装的 APK。无需配置复杂的 Android 开发环境，让你的创意触手可及。
 

@@ -271,7 +271,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       return { success: false, error: 'APK build failed - output file not found' };
     }
 
-    const apkDest = path.join(outputDir, `${appName}-debug.apk`);
+    const apkDest = path.join(outputDir, `${appName}.apk`);
     await fs.copy(apkSource, apkDest);
 
     // Cleanup temp directory

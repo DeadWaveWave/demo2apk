@@ -19,10 +19,10 @@ const defaultConfig: StorageConfig = {
  */
 export async function initStorage(config: Partial<StorageConfig> = {}): Promise<StorageConfig> {
   const finalConfig = { ...defaultConfig, ...config };
-  
+
   await fs.ensureDir(finalConfig.buildsDir);
   await fs.ensureDir(finalConfig.uploadsDir);
-  
+
   return finalConfig;
 }
 
@@ -36,13 +36,13 @@ export async function saveUploadedFile(
   config: Partial<StorageConfig> = {}
 ): Promise<string> {
   const finalConfig = { ...defaultConfig, ...config };
-  
+
   const taskDir = path.join(finalConfig.uploadsDir, taskId);
   await fs.ensureDir(taskDir);
-  
+
   const filePath = path.join(taskDir, filename);
   await fs.writeFile(filePath, fileBuffer);
-  
+
   return filePath;
 }
 
@@ -51,7 +51,7 @@ export async function saveUploadedFile(
  */
 export function getApkPath(taskId: string, appName: string, config: Partial<StorageConfig> = {}): string {
   const finalConfig = { ...defaultConfig, ...config };
-  return path.join(finalConfig.buildsDir, `${appName}-debug.apk`);
+  return path.join(finalConfig.buildsDir, `${appName}.apk`);
 }
 
 /**
@@ -78,13 +78,13 @@ export async function cleanupTask(
   config: Partial<StorageConfig> = {}
 ): Promise<void> {
   const finalConfig = { ...defaultConfig, ...config };
-  
+
   // Remove upload directory
   const uploadDir = path.join(finalConfig.uploadsDir, taskId);
   if (await fs.pathExists(uploadDir)) {
     await fs.remove(uploadDir);
   }
-  
+
   // Remove build directory
   const buildDir = path.join(finalConfig.buildsDir, appName);
   if (await fs.pathExists(buildDir)) {
@@ -101,40 +101,40 @@ export async function cleanupOldFiles(config: Partial<StorageConfig> = {}): Prom
 }> {
   const finalConfig = { ...defaultConfig, ...config };
   const now = Date.now();
-  
+
   let deletedUploads = 0;
   let deletedBuilds = 0;
-  
+
   // Clean uploads
   if (await fs.pathExists(finalConfig.uploadsDir)) {
     const uploads = await fs.readdir(finalConfig.uploadsDir);
-    
+
     for (const upload of uploads) {
       const uploadPath = path.join(finalConfig.uploadsDir, upload);
       const stat = await fs.stat(uploadPath);
-      
+
       if (now - stat.mtimeMs > finalConfig.maxAge) {
         await fs.remove(uploadPath);
         deletedUploads++;
       }
     }
   }
-  
+
   // Clean APK files older than maxAge
   if (await fs.pathExists(finalConfig.buildsDir)) {
     const builds = await fs.readdir(finalConfig.buildsDir);
-    
+
     for (const build of builds) {
       const buildPath = path.join(finalConfig.buildsDir, build);
       const stat = await fs.stat(buildPath);
-      
+
       if (now - stat.mtimeMs > finalConfig.maxAge) {
         await fs.remove(buildPath);
         deletedBuilds++;
       }
     }
   }
-  
+
   return { deletedUploads, deletedBuilds };
 }
 
@@ -148,36 +148,36 @@ export async function getStorageStats(config: Partial<StorageConfig> = {}): Prom
   buildsSize: number;
 }> {
   const finalConfig = { ...defaultConfig, ...config };
-  
+
   let uploadsCount = 0;
   let uploadsSize = 0;
   let buildsCount = 0;
   let buildsSize = 0;
-  
+
   if (await fs.pathExists(finalConfig.uploadsDir)) {
     const uploads = await fs.readdir(finalConfig.uploadsDir);
     uploadsCount = uploads.length;
-    
+
     for (const upload of uploads) {
       const stat = await fs.stat(path.join(finalConfig.uploadsDir, upload));
       uploadsSize += stat.size;
     }
   }
-  
+
   if (await fs.pathExists(finalConfig.buildsDir)) {
     const builds = await fs.readdir(finalConfig.buildsDir);
-    
+
     for (const build of builds) {
       const buildPath = path.join(finalConfig.buildsDir, build);
       const stat = await fs.stat(buildPath);
-      
+
       if (stat.isFile() && build.endsWith('.apk')) {
         buildsCount++;
         buildsSize += stat.size;
       }
     }
   }
-  
+
   return { uploadsCount, uploadsSize, buildsCount, buildsSize };
 }
 

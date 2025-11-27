@@ -8,14 +8,35 @@ export default function UploadZone() {
   const [buildType, setBuildType] = useState<BuildType>('html')
   const [appName, setAppName] = useState('')
   const [htmlCode, setHtmlCode] = useState('')
+  const [useFileName, setUseFileName] = useState(true) // Default: use filename as app name
   const { startBuild } = useBuildStore()
+
+  // Extract app name from filename (remove extension)
+  const getAppNameFromFile = (filename: string) => {
+    return filename.replace(/\.(html|htm|zip)$/i, '')
+  }
+
+  // For Mode B (Paste Code), we always need a custom name because there is no filename
+  const isPasteMode = buildType === 'html-paste'
+
+  // Update useFileName when mode changes
+  const handleModeChange = (newMode: BuildType) => {
+    setBuildType(newMode)
+    // If switching to Paste Mode, force custom name (disable auto filename)
+    if (newMode === 'html-paste') {
+      setUseFileName(false)
+    } else {
+      setUseFileName(true)
+    }
+  }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
-      startBuild(file, buildType === 'html' ? 'html' : 'zip', appName || undefined)
+      const finalAppName = useFileName ? getAppNameFromFile(file.name) : (appName || undefined)
+      startBuild(file, buildType === 'html' ? 'html' : 'zip', finalAppName)
     }
-  }, [buildType, appName, startBuild])
+  }, [buildType, appName, useFileName, startBuild])
 
   const handleHtmlCodeSubmit = useCallback(() => {
     if (!htmlCode.trim()) return
@@ -24,6 +45,7 @@ export default function UploadZone() {
     const blob = new Blob([htmlCode], { type: 'text/html' })
     const file = new File([blob], 'pasted-code.html', { type: 'text/html' })
 
+    // For pasted code, use custom name or default
     startBuild(file, 'html', appName || undefined)
   }, [htmlCode, appName, startBuild])
 
@@ -54,13 +76,72 @@ export default function UploadZone() {
             <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-bp-blue/50" />
             <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-blue/50" />
 
-            <input
-              type="text"
-              value={appName}
-              onChange={(e) => setAppName(e.target.value)}
-              placeholder="ENTER_APP_NAME (OPTIONAL)"
-              className="w-full bg-bp-dark/50 border border-bp-grid p-4 text-bp-text font-mono text-lg focus:border-bp-blue focus:outline-none focus:bg-bp-blue/5 transition-colors placeholder-bp-dim/30"
-            />
+            <div className="relative flex">
+              {useFileName ? (
+                /* Auto Mode: Full width button (Blue) */
+                <button
+                  type="button"
+                  onClick={() => !isPasteMode && setUseFileName(false)}
+                  className={`w-full bg-bp-blue/10 border border-bp-blue p-4 text-left font-mono text-lg text-bp-blue flex items-center justify-between group transition-all ${isPasteMode ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bp-blue/20'
+                    }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    AUTO: USE_FILENAME
+                  </span>
+                  {!isPasteMode && (
+                    <span className="text-xs uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      SWITCH TO CUSTOM <span className="text-lg">→</span>
+                    </span>
+                  )}
+                </button>
+              ) : (
+                /* Custom Mode: Input + Toggle Button (Green) */
+                <>
+                  <input
+                    type="text"
+                    value={appName}
+                    onChange={(e) => setAppName(e.target.value)}
+                    placeholder="ENTER_CUSTOM_APP_NAME"
+                    className="flex-1 bg-bp-dark/50 border border-green-500/50 p-4 text-green-400 font-mono text-lg focus:border-green-500 focus:outline-none focus:bg-green-500/5 transition-colors placeholder-green-500/30"
+                    autoFocus={!useFileName} // Focus when switched to custom
+                  />
+                  {/* Toggle Button (Only if not in Paste Mode) */}
+                  {!isPasteMode && (
+                    <button
+                      type="button"
+                      onClick={() => setUseFileName(true)}
+                      className="px-4 border border-l-0 border-green-500/50 bg-green-500/10 text-green-500 hover:bg-green-500/20 font-mono text-xs uppercase tracking-wider transition-all"
+                      title="Click to use filename"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-[9px]">AUTO</span>
+                      </div>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          {/* Helper text */}
+          <div className="mt-2 text-[10px] font-mono text-bp-dim flex justify-between">
+            <span>
+              {useFileName
+                ? '📁 APP NAME WILL MATCH UPLOADED FILENAME'
+                : isPasteMode
+                  ? '⚠️ CUSTOM NAME REQUIRED FOR PASTED CODE'
+                  : '✏️ ENTER CUSTOM APP NAME ABOVE'}
+            </span>
+            {useFileName && !isPasteMode && (
+              <span className="text-bp-blue cursor-pointer hover:underline" onClick={() => setUseFileName(false)}>
+                [CLICK TO EDIT]
+              </span>
+            )}
           </div>
         </div>
 
@@ -83,7 +164,7 @@ export default function UploadZone() {
       {/* Mode Tabs */}
       <div className="flex gap-1 flex-wrap">
         <button
-          onClick={() => setBuildType('html')}
+          onClick={() => handleModeChange('html')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'html'
             ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
             : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'
@@ -93,7 +174,7 @@ export default function UploadZone() {
           MODE_A: UPLOAD_HTML
         </button>
         <button
-          onClick={() => setBuildType('html-paste')}
+          onClick={() => handleModeChange('html-paste')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'html-paste'
             ? 'bg-bp-cyan/10 border-bp-cyan text-bp-cyan'
             : 'border-transparent text-bp-dim hover:text-bp-cyan/70 bg-bp-grid/10'
@@ -103,7 +184,7 @@ export default function UploadZone() {
           MODE_B: PASTE_CODE
         </button>
         <button
-          onClick={() => setBuildType('zip')}
+          onClick={() => handleModeChange('zip')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'zip'
             ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
             : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'

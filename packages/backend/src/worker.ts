@@ -34,22 +34,22 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
   // Mock build for testing
   if (MOCK_BUILD) {
     console.log('⚠️  MOCK_BUILD enabled - returning fake APK');
-    
+
     await onProgress('Starting mock build...', 10);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
     await onProgress('Processing files...', 30);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
     await onProgress('Building APK...', 60);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
     await onProgress('Finalizing...', 90);
     await new Promise((resolve) => setTimeout(resolve, 500));
-    
+
     // Create a fake APK file if it doesn't exist
-    const mockApkDest = path.join(outputDir, `${appName}-debug.apk`);
-    
+    const mockApkDest = path.join(outputDir, `${appName}.apk`);
+
     if (await fs.pathExists(MOCK_APK_PATH)) {
       await fs.copy(MOCK_APK_PATH, mockApkDest);
     } else {
@@ -57,9 +57,9 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
       await fs.ensureDir(outputDir);
       await fs.writeFile(mockApkDest, 'MOCK APK FILE FOR TESTING');
     }
-    
+
     await onProgress('Build completed!', 100);
-    
+
     return {
       success: true,
       apkPath: mockApkDest,
@@ -97,7 +97,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`❌ Build failed for job ${taskId}:`, message);
-    
+
     return {
       success: false,
       error: message,
@@ -119,14 +119,14 @@ async function cleanupOldBuilds() {
     }
 
     const entries = await fs.readdir(BUILDS_DIR, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const entryPath = path.join(BUILDS_DIR, entry.name);
-      
+
       try {
         const stats = await fs.stat(entryPath);
         const age = now - stats.mtimeMs;
-        
+
         if (age > retentionMs) {
           if (entry.isDirectory()) {
             await fs.remove(entryPath);
@@ -140,7 +140,7 @@ async function cleanupOldBuilds() {
         // Ignore errors for individual files
       }
     }
-    
+
     if (cleanedCount > 0) {
       console.log(`🧹 Cleanup complete: removed ${cleanedCount} expired items`);
     }
@@ -161,10 +161,10 @@ const worker = createBuildWorker(REDIS_URL, processBuildJob);
 const shutdown = async () => {
   console.log('\n⏹️  Shutting down worker...');
   await worker.close();
-  
+
   const redis = getRedisConnection(REDIS_URL);
   redis.disconnect();
-  
+
   console.log('👋 Worker shut down gracefully');
   process.exit(0);
 };

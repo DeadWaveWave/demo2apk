@@ -179,8 +179,12 @@ export function createBuildWorker(
     }
   );
 
-  worker.on('completed', (job) => {
-    console.log(`✓ Job ${job.id} completed`);
+  worker.on('completed', (job, result) => {
+    if (result?.success) {
+      console.log(`✓ Job ${job.id} completed successfully`);
+    } else {
+      console.log(`✗ Job ${job.id} completed with failure: ${result?.error || 'Unknown error'}`);
+    }
   });
 
   worker.on('failed', (job, err) => {

@@ -1,0 +1,207 @@
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+
+const resources = {
+    en: {
+        translation: {
+            common: {
+                loading: '...',
+            },
+            header: {
+                tagline: '// AUTOMATED BUILD SYSTEM',
+                mode: 'ENG-MODE',
+                starCta: 'Star Us!',
+            },
+            footer: {
+                systemStatus: 'SYSTEM STATUS: NOMINAL',
+                buildVersion: 'BUILD_VER: 2.0.0',
+                latency: 'LATENCY: 12ms',
+                blueprintId: 'ID: BLUEPRINT-01',
+            },
+            app: {
+                systemErrorTitle: 'SYSTEM ERROR',
+                taskIdLabel: 'TASK_ID',
+                copyTaskId: '[COPY]',
+                copyTaskTooltip: 'Copy Task ID',
+                resetButton: 'RESET SEQUENCE',
+                reportIssue: '[REPORT ISSUE]',
+            },
+            upload: {
+                parameterLabel: 'PARAMETER: APP_IDENTIFIER',
+                autoLabel: 'AUTO: USE_FILENAME',
+                switchToCustom: 'SWITCH TO CUSTOM',
+                customPlaceholder: 'ENTER_CUSTOM_APP_NAME',
+                autoBadge: 'AUTO',
+                helperAuto: '📁 APP NAME WILL MATCH UPLOADED FILENAME',
+                helperPaste: '⚠️ CUSTOM NAME REQUIRED FOR PASTED CODE',
+                helperCustom: '✏️ ENTER CUSTOM APP NAME ABOVE',
+                clickToEdit: '[CLICK TO EDIT]',
+                currentMode: 'CURRENT_MODE',
+                uploadHtml: 'UPLOAD_HTML',
+                pasteHtml: 'PASTE_HTML',
+                reactBundle: 'REACT_BUNDLE',
+                modeUploadHtml: 'MODE_A: UPLOAD_HTML',
+                modePasteCode: 'MODE_B: PASTE_CODE',
+                modeReactZip: 'MODE_C: REACT_ZIP',
+                sectionLabel: 'SECTION: DATA_INGESTION',
+                releaseToUpload: '>> RELEASE TO UPLOAD <<',
+                initTransfer: 'INITIALIZE DATA TRANSFER',
+                dragOrBrowse: 'DRAG FILE OR CLICK TO BROWSE',
+                maxSizeLabel: 'MAX_SIZE: 50MB // FMT: {{format}}',
+                submitReady: '>> INITIATE APK BUILD <<',
+                submitDisabled: 'ENTER HTML CODE',
+                charCount: 'CHARS: {{count}}',
+                htmlSupport: 'SUPPORTS COMPLETE HTML FILE CODE',
+                warningTitle: 'WARNING: BLANK SCREEN PREVENTION',
+                warningBody:
+                    'If your APK shows a white/blank screen after installation, your Vite config likely needs the @vitejs/plugin-legacy plugin.',
+                warningTip1: 'ES Modules not supported by old WebView',
+                warningTip2: 'Legacy plugin generates compatible code',
+                docsLink: 'VIEW FULL DOCUMENTATION',
+                textareaPlaceholder: `<!DOCTYPE html>
+<html>
+<head>
+  <title>My App</title>
+</head>
+<body>
+  <!-- PASTE YOUR HTML CODE HERE -->
+</body>
+</html>`,
+            },
+            progress: {
+                statusProcessing: 'STATUS: PROCESSING...',
+                targetFile: 'TARGET_FILE',
+                taskHash: 'TASK_HASH',
+                systemLogs: 'SYSTEM_LOGS',
+            },
+            complete: {
+                title: 'SEQUENCE COMPLETE',
+                outputName: 'OUTPUT_NAME',
+                format: 'FORMAT',
+                formatValue: 'ANDROID_APK',
+                taskId: 'TASK_ID',
+                status: 'STATUS',
+                statusValue: 'READY_FOR_DEPLOYMENT',
+                expiry: 'EXPIRY',
+                download: 'DOWNLOAD ARTIFACT',
+                newBuild: 'INITIATE NEW BUILD',
+                expiryFuture: 'Approx. {{hours}}h {{minutes}}m until auto cleanup',
+                expiryPast: 'Expired, file may have been removed',
+                retention: '(Retention {{hours}}h)',
+                unknown: 'UNKNOWN',
+            },
+            language: {
+                label: 'Language',
+                en: 'English',
+                zh: '中文',
+            },
+        },
+    },
+    zh: {
+        translation: {
+            common: {
+                loading: '...',
+            },
+            header: {
+                tagline: '// 自动化构建系统',
+                mode: '中文模式',
+                starCta: '给仓库点星',
+            },
+            footer: {
+                systemStatus: '系统状态：正常',
+                buildVersion: '版本：2.0.0',
+                latency: '延迟：12ms',
+                blueprintId: '编号：BLUEPRINT-01',
+            },
+            app: {
+                systemErrorTitle: '系统错误',
+                taskIdLabel: '任务编号',
+                copyTaskId: '[复制]',
+                copyTaskTooltip: '复制任务编号',
+                resetButton: '重新开始',
+                reportIssue: '[反馈问题]',
+            },
+            upload: {
+                parameterLabel: '参数：应用标识',
+                autoLabel: '自动：使用文件名',
+                switchToCustom: '切换到自定义',
+                customPlaceholder: '请输入自定义应用名称',
+                autoBadge: '自动',
+                helperAuto: '📁 应用名称将与上传的文件名保持一致',
+                helperPaste: '⚠️ 粘贴模式必须填写自定义名称',
+                helperCustom: '✏️ 请在上方输入自定义应用名称',
+                clickToEdit: '[点击编辑]',
+                currentMode: '当前模式',
+                uploadHtml: '上传 HTML',
+                pasteHtml: '粘贴 HTML',
+                reactBundle: '上传 React 包',
+                modeUploadHtml: '模式 A：上传 HTML',
+                modePasteCode: '模式 B：粘贴代码',
+                modeReactZip: '模式 C：React ZIP',
+                sectionLabel: '区域：数据输入',
+                releaseToUpload: '>> 松手即可上传 <<',
+                initTransfer: '开始数据传输',
+                dragOrBrowse: '拖拽文件或点击选择',
+                maxSizeLabel: '最大：50MB // 格式：{{format}}',
+                submitReady: '>> 启动 APK 构建 <<',
+                submitDisabled: '请输入 HTML 代码',
+                charCount: '字符：{{count}}',
+                htmlSupport: '支持完整 HTML 文件代码',
+                warningTitle: '警告：白屏防护',
+                warningBody:
+                    '如果安装后看到白屏，请在 Vite 配置中启用 @vitejs/plugin-legacy 插件。',
+                warningTip1: '旧版 WebView 不支持 ES Modules',
+                warningTip2: 'Legacy 插件会生成兼容代码',
+                docsLink: '查看完整文档',
+                textareaPlaceholder: `<!DOCTYPE html>
+<html>
+<head>
+  <title>我的应用</title>
+</head>
+<body>
+  <!-- 将 HTML 代码粘贴到此处 -->
+</body>
+</html>`,
+            },
+            progress: {
+                statusProcessing: '状态：处理中...',
+                targetFile: '目标文件',
+                taskHash: '任务指纹',
+                systemLogs: '系统日志',
+            },
+            complete: {
+                title: '流程完成',
+                outputName: '输出名称',
+                format: '格式',
+                formatValue: 'Android APK',
+                taskId: '任务编号',
+                status: '状态',
+                statusValue: '可用于部署',
+                expiry: '有效期',
+                download: '下载构建产物',
+                newBuild: '开始新的构建',
+                expiryFuture: '约 {{hours}} 小时 {{minutes}} 分后自动清理',
+                expiryPast: '已过期，文件可能已被移除',
+                retention: '（保留 {{hours}} 小时）',
+                unknown: '未知',
+            },
+            language: {
+                label: '界面语言',
+                en: 'English',
+                zh: '中文',
+            },
+        },
+    },
+}
+
+i18n.use(initReactI18next).init({
+    resources,
+    lng: 'en',
+    fallbackLng: 'en',
+    interpolation: {
+        escapeValue: false,
+    },
+})
+
+export default i18n
+

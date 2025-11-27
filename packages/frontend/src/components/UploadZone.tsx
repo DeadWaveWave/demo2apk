@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useBuildStore } from '../hooks/useBuildStore'
+import { useTranslation } from 'react-i18next'
 
 type BuildType = 'html' | 'html-paste' | 'zip'
 
@@ -10,6 +11,7 @@ export default function UploadZone() {
   const [htmlCode, setHtmlCode] = useState('')
   const [useFileName, setUseFileName] = useState(true) // Default: use filename as app name
   const { startBuild } = useBuildStore()
+  const { t } = useTranslation()
 
   // Extract app name from filename (remove extension)
   const getAppNameFromFile = (filename: string) => {
@@ -67,7 +69,7 @@ export default function UploadZone() {
         {/* App Name Input (Primary Config) */}
         <div className="md:col-span-2 relative group">
           <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-xs font-mono text-bp-blue z-10">
-            PARAMETER: APP_IDENTIFIER
+            {t('upload.parameterLabel')}
           </div>
           <div className="relative">
             {/* Decorative corners for input */}
@@ -89,11 +91,11 @@ export default function UploadZone() {
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    AUTO: USE_FILENAME
+                    {t('upload.autoLabel')}
                   </span>
                   {!isPasteMode && (
                     <span className="text-xs uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                      SWITCH TO CUSTOM <span className="text-lg">→</span>
+                      {t('upload.switchToCustom')} <span className="text-lg">→</span>
                     </span>
                   )}
                 </button>
@@ -104,7 +106,7 @@ export default function UploadZone() {
                     type="text"
                     value={appName}
                     onChange={(e) => setAppName(e.target.value)}
-                    placeholder="ENTER_CUSTOM_APP_NAME"
+                    placeholder={t('upload.customPlaceholder')}
                     className="flex-1 bg-bp-dark/50 border border-green-500/50 p-4 text-green-400 font-mono text-lg focus:border-green-500 focus:outline-none focus:bg-green-500/5 transition-colors placeholder-green-500/30"
                     autoFocus={!useFileName} // Focus when switched to custom
                   />
@@ -120,7 +122,7 @@ export default function UploadZone() {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span className="text-[9px]">AUTO</span>
+                        <span className="text-[9px]">{t('upload.autoBadge')}</span>
                       </div>
                     </button>
                   )}
@@ -132,14 +134,14 @@ export default function UploadZone() {
           <div className="mt-2 text-[10px] font-mono text-bp-dim flex justify-between">
             <span>
               {useFileName
-                ? '📁 APP NAME WILL MATCH UPLOADED FILENAME'
+                ? t('upload.helperAuto')
                 : isPasteMode
-                  ? '⚠️ CUSTOM NAME REQUIRED FOR PASTED CODE'
-                  : '✏️ ENTER CUSTOM APP NAME ABOVE'}
+                  ? t('upload.helperPaste')
+                  : t('upload.helperCustom')}
             </span>
             {useFileName && !isPasteMode && (
               <span className="text-bp-blue cursor-pointer hover:underline" onClick={() => setUseFileName(false)}>
-                [CLICK TO EDIT]
+                {t('upload.clickToEdit')}
               </span>
             )}
           </div>
@@ -148,16 +150,16 @@ export default function UploadZone() {
         {/* Mode Display (Secondary Info) */}
         <div className="border border-bp-grid bg-bp-dark/30 p-4 flex flex-col justify-center relative">
           <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-xs font-mono text-bp-dim">
-            CURRENT_MODE
+            {t('upload.currentMode')}
           </div>
           <div className="font-tech text-xl text-bp-blue tracking-widest uppercase">
-            {buildType === 'html' ? 'UPLOAD_HTML' : buildType === 'html-paste' ? 'PASTE_HTML' : 'REACT_BUNDLE'}
+            {buildType === 'html' ? t('upload.uploadHtml') : buildType === 'html-paste' ? t('upload.pasteHtml') : t('upload.reactBundle')}
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between mb-2 pt-4 border-t border-bp-grid/30">
-        <div className="text-bp-blue/70 font-mono text-xs">SECTION: DATA_INGESTION</div>
+        <div className="text-bp-blue/70 font-mono text-xs">{t('upload.sectionLabel')}</div>
         <div className="ruler-x w-1/3 opacity-30" />
       </div>
 
@@ -171,7 +173,7 @@ export default function UploadZone() {
             }`}
         >
           {buildType === 'html' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-blue" />}
-          MODE_A: UPLOAD_HTML
+          {t('upload.modeUploadHtml')}
         </button>
         <button
           onClick={() => handleModeChange('html-paste')}
@@ -181,7 +183,7 @@ export default function UploadZone() {
             }`}
         >
           {buildType === 'html-paste' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-cyan" />}
-          MODE_B: PASTE_CODE
+          {t('upload.modePasteCode')}
         </button>
         <button
           onClick={() => handleModeChange('zip')}
@@ -191,7 +193,7 @@ export default function UploadZone() {
             }`}
         >
           {buildType === 'zip' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-blue" />}
-          MODE_C: REACT_ZIP
+          {t('upload.modeReactZip')}
         </button>
       </div>
 
@@ -209,15 +211,7 @@ export default function UploadZone() {
             <textarea
               value={htmlCode}
               onChange={(e) => setHtmlCode(e.target.value)}
-              placeholder={`<!DOCTYPE html>
-<html>
-<head>
-  <title>My App</title>
-</head>
-<body>
-  <!-- PASTE YOUR HTML CODE HERE -->
-</body>
-</html>`}
+              placeholder={t('upload.textareaPlaceholder')}
               className="w-full h-64 bg-bp-dark/70 border border-bp-grid p-4 text-bp-text font-mono text-sm focus:border-bp-cyan focus:outline-none focus:bg-bp-cyan/5 transition-colors placeholder-bp-dim/40 resize-none"
               spellCheck={false}
             />
@@ -237,14 +231,14 @@ export default function UploadZone() {
               <div className="absolute inset-0 bg-gradient-to-r from-bp-cyan/0 via-bp-cyan/10 to-bp-cyan/0 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-1000" />
             )}
             <span className="relative z-10">
-              {htmlCode.trim() ? '>> INITIATE APK BUILD <<' : 'ENTER HTML CODE'}
+              {htmlCode.trim() ? t('upload.submitReady') : t('upload.submitDisabled')}
             </span>
           </button>
 
           {/* Info Label */}
           <div className="flex justify-between items-center text-xs font-mono text-bp-dim">
-            <span>CHARS: {htmlCode.length.toLocaleString()}</span>
-            <span className="text-bp-cyan/70">SUPPORTS COMPLETE HTML FILE CODE</span>
+            <span>{t('upload.charCount', { count: htmlCode.length.toLocaleString() })}</span>
+            <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
           </div>
         </div>
       ) : (
@@ -276,17 +270,17 @@ export default function UploadZone() {
             </div>
             <div>
               <div className="text-xl font-tech text-bp-text tracking-widest uppercase group-hover:text-bp-blue transition-colors">
-                {isDragActive ? '>> RELEASE TO UPLOAD <<' : 'INITIALIZE DATA TRANSFER'}
+                {isDragActive ? t('upload.releaseToUpload') : t('upload.initTransfer')}
               </div>
               <div className="text-xs font-mono text-bp-dim mt-2">
-                DRAG FILE OR CLICK TO BROWSE
+                {t('upload.dragOrBrowse')}
               </div>
             </div>
           </div>
 
           {/* Spec Label */}
           <div className="absolute bottom-4 right-4 font-mono text-[10px] text-bp-dim bg-bp-dark px-2 border border-bp-grid">
-            MAX_SIZE: 50MB // FMT: {buildType.toUpperCase()}
+            {t('upload.maxSizeLabel', { format: buildType.toUpperCase() })}
           </div>
         </div>
       )}
@@ -306,13 +300,12 @@ export default function UploadZone() {
 
             <div className="space-y-3 flex-1">
               <div className="font-tech text-amber-400 tracking-wider text-sm uppercase">
-                WARNING: BLANK SCREEN PREVENTION
+                {t('upload.warningTitle')}
               </div>
 
               <div className="text-xs font-mono text-bp-dim space-y-2">
                 <p className="text-bp-text">
-                  If your APK shows a <span className="text-amber-400">white/blank screen</span> after installation,
-                  your Vite config likely needs the <span className="text-bp-cyan">@vitejs/plugin-legacy</span> plugin.
+                  {t('upload.warningBody')}
                 </p>
 
                 <div className="bg-bp-dark/70 p-3 border border-bp-grid overflow-x-auto">
@@ -331,11 +324,11 @@ export default defineConfig({
                 <div className="flex flex-wrap gap-4 text-[10px] pt-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-red-400">✗</span>
-                    <span className="text-bp-dim">ES Modules not supported by old WebView</span>
+                    <span className="text-bp-dim">{t('upload.warningTip1')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-green-400">✓</span>
-                    <span className="text-bp-dim">Legacy plugin generates compatible code</span>
+                    <span className="text-bp-dim">{t('upload.warningTip2')}</span>
                   </div>
                 </div>
               </div>
@@ -346,7 +339,7 @@ export default defineConfig({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors group"
               >
-                <span>VIEW FULL DOCUMENTATION</span>
+                <span>{t('upload.docsLink')}</span>
                 <svg className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>

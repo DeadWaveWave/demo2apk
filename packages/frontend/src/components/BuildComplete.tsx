@@ -1,14 +1,16 @@
 import { useMemo } from 'react'
 import { useBuildStore } from '../hooks/useBuildStore'
+import { useTranslation } from 'react-i18next'
 
 function useExpiryInfo(expiresAt: string | null, retentionHours: number | null) {
+  const { t } = useTranslation()
   return useMemo(() => {
     if (!expiresAt) {
-      return { label: 'UNKNOWN', helper: null }
+      return { label: t('complete.unknown'), helper: null }
     }
     const expiryDate = new Date(expiresAt)
     if (Number.isNaN(expiryDate.getTime())) {
-      return { label: 'UNKNOWN', helper: null }
+      return { label: t('complete.unknown'), helper: null }
     }
     const formatted = expiryDate.toLocaleString(undefined, {
       year: 'numeric',
@@ -22,22 +24,23 @@ function useExpiryInfo(expiresAt: string | null, retentionHours: number | null) 
     if (diffMs > 0) {
       const hours = Math.floor(diffMs / (1000 * 60 * 60))
       const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-      helper = `约 ${hours}h ${minutes}m 后自动清理`
+      helper = t('complete.expiryFuture', { hours, minutes })
     } else {
-      helper = '已过期，可能已被清理'
+      helper = t('complete.expiryPast')
     }
 
     if (typeof retentionHours === 'number') {
-      helper += `（保留时长 ${retentionHours}h）`
+      helper += ` ${t('complete.retention', { hours: retentionHours })}`
     }
 
     return { label: formatted, helper }
-  }, [expiresAt, retentionHours])
+  }, [expiresAt, retentionHours, t])
 }
 
 export default function BuildComplete() {
   const { fileName, reset, downloadUrl, taskId, expiresAt, retentionHours } = useBuildStore()
   const expiryInfo = useExpiryInfo(expiresAt, retentionHours)
+  const { t } = useTranslation()
 
   const handleDownload = () => {
     if (downloadUrl) {
@@ -58,7 +61,7 @@ export default function BuildComplete() {
       </div>
 
       <h2 className="text-4xl font-tech text-bp-text mb-2 tracking-widest">
-        SEQUENCE COMPLETE
+        {t('complete.title')}
       </h2>
       <div className="h-[1px] w-32 bg-bp-cyan/50 mx-auto mb-8 shadow-glow-cyan" />
 
@@ -71,28 +74,28 @@ export default function BuildComplete() {
         <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-cyan" />
 
         <div className="grid grid-cols-[100px_1fr] gap-4 font-mono text-xs">
-          <div className="text-bp-dim">OUTPUT_NAME:</div>
+          <div className="text-bp-dim">{t('complete.outputName')}:</div>
           <div className="text-bp-text truncate">{fileName?.replace(/\.(html|zip)$/i, '')}.apk</div>
 
-          <div className="text-bp-dim">FORMAT:</div>
-          <div className="text-bp-blue">ANDROID_APK</div>
+          <div className="text-bp-dim">{t('complete.format')}:</div>
+          <div className="text-bp-blue">{t('complete.formatValue')}</div>
 
-          <div className="text-bp-dim">TASK_ID:</div>
+          <div className="text-bp-dim">{t('complete.taskId')}:</div>
           <div className="text-bp-blue flex items-center gap-2">
             <span className="select-all">{taskId}</span>
             <button 
               onClick={() => taskId && navigator.clipboard.writeText(taskId)}
               className="text-bp-dim hover:text-bp-cyan"
-              title="Copy Task ID"
+              title={t('app.copyTaskTooltip')}
             >
-              [COPY]
+              {t('app.copyTaskId')}
             </button>
           </div>
 
-          <div className="text-bp-dim">STATUS:</div>
-          <div className="text-bp-cyan">READY_FOR_DEPLOYMENT</div>
+          <div className="text-bp-dim">{t('complete.status')}:</div>
+          <div className="text-bp-cyan">{t('complete.statusValue')}</div>
 
-          <div className="text-bp-dim">EXPIRY:</div>
+          <div className="text-bp-dim">{t('complete.expiry')}:</div>
           <div className="text-bp-alert flex flex-col">
             <span>{expiryInfo.label}</span>
             {expiryInfo.helper && <span className="text-xs text-bp-dim mt-1">{expiryInfo.helper}</span>}
@@ -109,7 +112,7 @@ export default function BuildComplete() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            DOWNLOAD ARTIFACT
+            {t('complete.download')}
           </span>
         </button>
 
@@ -117,7 +120,7 @@ export default function BuildComplete() {
           onClick={reset}
           className="btn-blueprint text-bp-dim hover:text-bp-text border-bp-grid hover:border-bp-text"
         >
-          INITIATE NEW BUILD
+          {t('complete.newBuild')}
         </button>
       </div>
     </div>

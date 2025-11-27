@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useBuildStore } from '../hooks/useBuildStore'
+import { useTranslation } from 'react-i18next'
 
 export default function BuildProgress() {
   const { progress, logs, taskId, fileName } = useBuildStore()
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
 
   // Auto-scroll logs
   useEffect(() => {
@@ -13,18 +15,18 @@ export default function BuildProgress() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-bp-blue/70 font-mono text-xs animate-pulse">STATUS: PROCESSING...</div>
+        <div className="text-bp-blue/70 font-mono text-xs animate-pulse">{t('progress.statusProcessing')}</div>
         <div className="ruler-x w-1/3 opacity-30" />
       </div>
 
       {/* Task Information Grid */}
       <div className="grid grid-cols-2 gap-4 mb-6 font-mono text-xs">
         <div className="border border-bp-grid p-2 flex justify-between items-center bg-bp-dark/30">
-           <span className="text-bp-dim">TARGET_FILE</span>
+           <span className="text-bp-dim">{t('progress.targetFile')}</span>
            <span className="text-bp-text">{fileName}</span>
         </div>
         <div className="border border-bp-grid p-2 flex justify-between items-center bg-bp-dark/30">
-           <span className="text-bp-dim">TASK_HASH</span>
+           <span className="text-bp-dim">{t('progress.taskHash')}</span>
            <span className="text-bp-blue">{taskId?.slice(0, 8)}</span>
         </div>
       </div>
@@ -56,7 +58,7 @@ export default function BuildProgress() {
       {/* Terminal Log Output */}
       <div className="relative">
         <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-xs font-mono text-bp-dim">
-          SYSTEM_LOGS
+          {t('progress.systemLogs')}
         </div>
         <div className="h-[300px] border border-bp-grid bg-[#030508] p-4 font-mono text-xs overflow-y-auto custom-scrollbar shadow-inner">
           {logs.map((log, i) => {

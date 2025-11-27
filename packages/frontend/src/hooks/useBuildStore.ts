@@ -10,6 +10,8 @@ interface BuildState {
   fileName: string | null
   downloadUrl: string | null
   error: string | null
+  expiresAt: string | null
+  retentionHours: number | null
   
   // Actions
   startBuild: (file: File, type: 'html' | 'zip', appName?: string) => Promise<void>
@@ -24,6 +26,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   fileName: null,
   downloadUrl: null,
   error: null,
+  expiresAt: null,
+  retentionHours: null,
 
   startBuild: async (file: File, type: 'html' | 'zip', appName?: string) => {
     set({ 
@@ -32,6 +36,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       logs: [],
       fileName: file.name,
       error: null,
+      expiresAt: null,
+      retentionHours: null,
     })
 
     try {
@@ -98,6 +104,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       fileName: null,
       downloadUrl: null,
       error: null,
+      expiresAt: null,
+      retentionHours: null,
     })
   },
 }))
@@ -122,6 +130,8 @@ async function pollBuildStatus(
 
       const data = await response.json()
       const newLogs = [...get().logs]
+      const expiresAt = data.expiresAt || null
+      const retentionHours = typeof data.retentionHours === 'number' ? data.retentionHours : null
       
       // Update Logs
       if (data.progress?.message) {
@@ -140,6 +150,8 @@ async function pollBuildStatus(
           progress: 100,
           logs: newLogs,
           downloadUrl: `/api/build/${taskId}/download`,
+          expiresAt: expiresAt || get().expiresAt,
+          retentionHours: retentionHours ?? get().retentionHours,
         })
         return
       } else if (data.status === 'failed') {
@@ -149,6 +161,8 @@ async function pollBuildStatus(
           status: 'error',
           error: data.error || 'BUILD FAILED',
           logs: newLogs,
+          expiresAt: expiresAt || get().expiresAt,
+          retentionHours: retentionHours ?? get().retentionHours,
         })
         return
       } else {
@@ -167,7 +181,9 @@ async function pollBuildStatus(
 
         set({ 
           progress: nextProgress, 
-          logs: newLogs 
+          logs: newLogs,
+          expiresAt: expiresAt || get().expiresAt,
+          retentionHours: retentionHours ?? get().retentionHours,
         })
       }
 
@@ -186,5 +202,7 @@ async function pollBuildStatus(
     status: 'error',
     error: 'OPERATION TIMED OUT',
     logs: [...get().logs, '[FATAL ERROR] CONNECTION LOST'],
+    expiresAt: null,
+    retentionHours: null,
   })
 }

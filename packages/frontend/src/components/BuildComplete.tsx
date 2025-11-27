@@ -1,7 +1,43 @@
+import { useMemo } from 'react'
 import { useBuildStore } from '../hooks/useBuildStore'
 
+function useExpiryInfo(expiresAt: string | null, retentionHours: number | null) {
+  return useMemo(() => {
+    if (!expiresAt) {
+      return { label: 'UNKNOWN', helper: null }
+    }
+    const expiryDate = new Date(expiresAt)
+    if (Number.isNaN(expiryDate.getTime())) {
+      return { label: 'UNKNOWN', helper: null }
+    }
+    const formatted = expiryDate.toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    const diffMs = expiryDate.getTime() - Date.now()
+    let helper: string | null = null
+    if (diffMs > 0) {
+      const hours = Math.floor(diffMs / (1000 * 60 * 60))
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+      helper = `约 ${hours}h ${minutes}m 后自动清理`
+    } else {
+      helper = '已过期，可能已被清理'
+    }
+
+    if (typeof retentionHours === 'number') {
+      helper += `（保留时长 ${retentionHours}h）`
+    }
+
+    return { label: formatted, helper }
+  }, [expiresAt, retentionHours])
+}
+
 export default function BuildComplete() {
-  const { fileName, reset, downloadUrl } = useBuildStore()
+  const { fileName, reset, downloadUrl, taskId, expiresAt, retentionHours } = useBuildStore()
+  const expiryInfo = useExpiryInfo(expiresAt, retentionHours)
 
   const handleDownload = () => {
     if (downloadUrl) {
@@ -41,11 +77,26 @@ export default function BuildComplete() {
           <div className="text-bp-dim">FORMAT:</div>
           <div className="text-bp-blue">ANDROID_APK</div>
 
+          <div className="text-bp-dim">TASK_ID:</div>
+          <div className="text-bp-blue flex items-center gap-2">
+            <span className="select-all">{taskId}</span>
+            <button 
+              onClick={() => taskId && navigator.clipboard.writeText(taskId)}
+              className="text-bp-dim hover:text-bp-cyan"
+              title="Copy Task ID"
+            >
+              [COPY]
+            </button>
+          </div>
+
           <div className="text-bp-dim">STATUS:</div>
           <div className="text-bp-cyan">READY_FOR_DEPLOYMENT</div>
 
           <div className="text-bp-dim">EXPIRY:</div>
-          <div className="text-bp-alert">T-MINUS 24H</div>
+          <div className="text-bp-alert flex flex-col">
+            <span>{expiryInfo.label}</span>
+            {expiryInfo.helper && <span className="text-xs text-bp-dim mt-1">{expiryInfo.helper}</span>}
+          </div>
         </div>
       </div>
 

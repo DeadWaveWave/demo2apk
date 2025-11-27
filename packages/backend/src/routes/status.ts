@@ -27,6 +27,16 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
     const { taskId } = request.params;
 
     const jobStatus = await getJobStatus(config.redisUrl, taskId);
+    const retentionHours = config.fileRetentionHours;
+    let expiresAt: string | undefined;
+
+    if (jobStatus.createdAt) {
+      const createdTime = new Date(jobStatus.createdAt).getTime();
+      const expiryTime = createdTime + retentionHours * 60 * 60 * 1000;
+      if (!Number.isNaN(expiryTime)) {
+        expiresAt = new Date(expiryTime).toISOString();
+      }
+    }
 
     if (jobStatus.status === 'not_found') {
       return reply.status(404).send({
@@ -47,6 +57,11 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
       taskId,
       status: actualStatus,
     };
+
+    if (expiresAt) {
+      response.expiresAt = expiresAt;
+    }
+    response.retentionHours = retentionHours;
 
     if (jobStatus.progress) {
       response.progress = jobStatus.progress;

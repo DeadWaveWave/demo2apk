@@ -6,7 +6,7 @@ import BuildComplete from './components/BuildComplete'
 import { useBuildStore } from './hooks/useBuildStore'
 
 function App() {
-  const { status, error, reset } = useBuildStore()
+  const { status, error, reset, taskId } = useBuildStore()
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
@@ -44,10 +44,36 @@ function App() {
              <div className="border border-bp-alert bg-bp-alert/5 p-8 text-center corner-brackets">
                 <h2 className="text-3xl text-bp-alert mb-4 font-bold tracking-widest">SYSTEM ERROR</h2>
                 <div className="h-[1px] w-full bg-bp-alert/30 mb-6" />
-                <p className="text-bp-text mb-8 font-mono">{error}</p>
-                <button onClick={reset} className="btn-blueprint border-bp-alert text-bp-alert hover:bg-bp-alert hover:text-bp-dark">
-                  RESET SEQUENCE
-                </button>
+                <p className="text-bp-text mb-6 font-mono">{error}</p>
+                
+                {/* Task ID for issue reporting */}
+                {taskId && (
+                  <div className="mb-8 p-3 border border-bp-grid bg-bp-dark/50 inline-block">
+                    <span className="text-bp-dim text-xs font-mono">TASK_ID: </span>
+                    <span className="text-bp-blue text-xs font-mono select-all">{taskId}</span>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText(taskId)}
+                      className="ml-2 text-bp-dim hover:text-bp-blue text-xs"
+                      title="Copy Task ID"
+                    >
+                      [COPY]
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex flex-col items-center gap-2">
+                  <button onClick={reset} className="btn-blueprint border-bp-alert text-bp-alert hover:bg-bp-alert hover:text-bp-dark">
+                    RESET SEQUENCE
+                  </button>
+                  <a 
+                    href={`https://github.com/DeadWaveWave/demo2apk/issues/new?title=Build%20Error%20[${taskId || 'N/A'}]&body=**Task%20ID:**%20%60${taskId || 'N/A'}%60%0A%0A**Error:**%0A%60%60%60%0A${encodeURIComponent(error || '')}%0A%60%60%60%0A%0A**Additional%20Info:**%0A`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-bp-dim hover:text-bp-text text-xs font-mono"
+                  >
+                    [REPORT ISSUE]
+                  </a>
+                </div>
              </div>
           )}
         </main>

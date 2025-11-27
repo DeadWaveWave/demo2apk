@@ -85,8 +85,8 @@ export default function UploadZone() {
         <button
           onClick={() => setBuildType('html')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'html'
-              ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
-              : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'
+            ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
+            : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'
             }`}
         >
           {buildType === 'html' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-blue" />}
@@ -95,8 +95,8 @@ export default function UploadZone() {
         <button
           onClick={() => setBuildType('html-paste')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'html-paste'
-              ? 'bg-bp-cyan/10 border-bp-cyan text-bp-cyan'
-              : 'border-transparent text-bp-dim hover:text-bp-cyan/70 bg-bp-grid/10'
+            ? 'bg-bp-cyan/10 border-bp-cyan text-bp-cyan'
+            : 'border-transparent text-bp-dim hover:text-bp-cyan/70 bg-bp-grid/10'
             }`}
         >
           {buildType === 'html-paste' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-cyan" />}
@@ -105,8 +105,8 @@ export default function UploadZone() {
         <button
           onClick={() => setBuildType('zip')}
           className={`flex-1 md:flex-none px-4 py-3 font-mono text-sm uppercase tracking-wider border-t border-l border-r relative transition-all ${buildType === 'zip'
-              ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
-              : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'
+            ? 'bg-bp-blue/10 border-bp-blue text-bp-blue'
+            : 'border-transparent text-bp-dim hover:text-bp-blue/70 bg-bp-grid/10'
             }`}
         >
           {buildType === 'zip' && <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-blue" />}
@@ -147,8 +147,8 @@ export default function UploadZone() {
             onClick={handleHtmlCodeSubmit}
             disabled={!htmlCode.trim()}
             className={`w-full py-4 font-tech text-lg uppercase tracking-widest border relative overflow-hidden transition-all duration-300 ${htmlCode.trim()
-                ? 'border-bp-cyan text-bp-cyan hover:bg-bp-cyan hover:text-bp-dark cursor-pointer'
-                : 'border-bp-grid text-bp-dim cursor-not-allowed'
+              ? 'border-bp-cyan text-bp-cyan hover:bg-bp-cyan hover:text-bp-dark cursor-pointer'
+              : 'border-bp-grid text-bp-dim cursor-not-allowed'
               }`}
           >
             {/* Animated gradient background on hover */}
@@ -206,6 +206,71 @@ export default function UploadZone() {
           {/* Spec Label */}
           <div className="absolute bottom-4 right-4 font-mono text-[10px] text-bp-dim bg-bp-dark px-2 border border-bp-grid">
             MAX_SIZE: 50MB // FMT: {buildType.toUpperCase()}
+          </div>
+        </div>
+      )}
+
+      {/* React White Screen Warning - Only show in ZIP mode */}
+      {buildType === 'zip' && (
+        <div className="border border-amber-500/50 bg-amber-500/5 p-4 relative">
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-amber-500" />
+          <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-amber-500" />
+          <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-amber-500" />
+          <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-amber-500" />
+
+          <div className="flex items-start gap-3">
+            {/* Warning Icon */}
+            <div className="text-amber-500 text-xl flex-shrink-0">⚠️</div>
+
+            <div className="space-y-3 flex-1">
+              <div className="font-tech text-amber-400 tracking-wider text-sm uppercase">
+                WARNING: BLANK SCREEN PREVENTION
+              </div>
+
+              <div className="text-xs font-mono text-bp-dim space-y-2">
+                <p className="text-bp-text">
+                  If your APK shows a <span className="text-amber-400">white/blank screen</span> after installation,
+                  your Vite config likely needs the <span className="text-bp-cyan">@vitejs/plugin-legacy</span> plugin.
+                </p>
+
+                <div className="bg-bp-dark/70 p-3 border border-bp-grid overflow-x-auto">
+                  <pre className="text-[11px] text-bp-cyan whitespace-pre"><code>{`// vite.config.js
+import legacy from '@vitejs/plugin-legacy'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    legacy({ targets: ['chrome >= 52'] })
+  ],
+  base: './'  // Required for APK
+})`}</code></pre>
+                </div>
+
+                <div className="flex flex-wrap gap-4 text-[10px] pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-red-400">✗</span>
+                    <span className="text-bp-dim">ES Modules not supported by old WebView</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-400">✓</span>
+                    <span className="text-bp-dim">Legacy plugin generates compatible code</span>
+                  </div>
+                </div>
+              </div>
+
+              <a
+                href="https://github.com/DeadWaveWave/demo2apk/blob/main/docs/REACT_PROJECT_REQUIREMENTS.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs font-mono text-amber-400 hover:text-amber-300 transition-colors group"
+              >
+                <span>VIEW FULL DOCUMENTATION</span>
+                <svg className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
       )}

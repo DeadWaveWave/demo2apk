@@ -19,6 +19,29 @@ Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是�
 *   **🛡️ 智能限流**：合理的资源分配策略，支持开发模式下关闭限流。
 *   **🧹 自动清理**：构建产物保留 2 小时后自动清理，保护隐私并节省空间。
 
+## ⚠️ React 项目：避免白屏问题
+
+> **重要提示**：如果你的 React/Vite 打包的 APK 显示**白屏/空白页面**，你需要添加 legacy 插件以兼容 Android WebView。
+
+```bash
+npm install -D @vitejs/plugin-legacy terser
+```
+
+```javascript
+// vite.config.js
+import legacy from '@vitejs/plugin-legacy'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    legacy({ targets: ['chrome >= 52', 'android >= 5'] })
+  ],
+  base: './'  // APK 必需！
+})
+```
+
+📖 **[完整指南：React 项目打包要求](docs/REACT_PROJECT_REQUIREMENTS.md)** - 白屏问题的详细排查方案。
+
 ## 🚀 快速开始
 
 ### 方式一：使用 Web 界面 (推荐)

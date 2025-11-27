@@ -21,6 +21,29 @@ Demo2APK is a one-click packaging tool built for Vibe Coding users. Whether you 
 *   **🛡️ Rate Limiting**: Smart resource allocation (configurable for dev mode).
 *   **🧹 Auto Cleanup**: Build artifacts are automatically deleted after 2 hours to protect privacy and save space.
 
+## ⚠️ React Projects: Avoiding Blank Screens
+
+> **Important**: If your React/Vite APK shows a **white/blank screen**, you need to add the legacy plugin for Android WebView compatibility.
+
+```bash
+npm install -D @vitejs/plugin-legacy terser
+```
+
+```javascript
+// vite.config.js
+import legacy from '@vitejs/plugin-legacy'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    legacy({ targets: ['chrome >= 52', 'android >= 5'] })
+  ],
+  base: './'  // Required for APK!
+})
+```
+
+📖 **[Full Guide: React Project Requirements](docs/REACT_PROJECT_REQUIREMENTS.md)** - Detailed troubleshooting for blank screen issues.
+
 ## 🚀 Quick Start
 
 ### Option 1: Web Interface (Recommended)

@@ -1,5 +1,6 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
+import type { Logger } from '../utils/logger.js';
 
 export type BuildType = 'html' | 'zip';
 
@@ -166,7 +167,8 @@ export async function removeJob(redisUrl: string, taskId: string): Promise<boole
  */
 export function createBuildWorker(
   redisUrl: string,
-  processor: (job: Job<BuildJobData, BuildJobResult>) => Promise<BuildJobResult>
+  processor: (job: Job<BuildJobData, BuildJobResult>) => Promise<BuildJobResult>,
+  logger?: Logger
 ): Worker<BuildJobData, BuildJobResult> {
   const connection = getRedisConnection(redisUrl);
   
@@ -180,20 +182,52 @@ export function createBuildWorker(
   );
 
   worker.on('completed', (job, result) => {
-    if (result?.success) {
-      console.log(`✓ Job ${job.id} completed successfully`);
-    } else {
-      console.log(`✗ Job ${job.id} completed with failure: ${result?.error || 'Unknown error'}`);
+    const jobData = job.data;
+    if (logger) {
+      if (result?.success) {
+        logger.info('Job completed', {
+          jobId: job.id,
+          taskId: jobData.taskId,
+          appName: jobData.appName,
+          success: true,
+          durationMs: result.duration,
+        });
+      } else {
+        logger.warn('Job completed with build failure', {
+          jobId: job.id,
+          taskId: jobData.taskId,
+          appName: jobData.appName,
+          success: false,
+          error: result?.error,
+        });
+      }
     }
   });
 
   worker.on('failed', (job, err) => {
-    console.error(`✗ Job ${job?.id} failed:`, err.message);
+    if (logger && job) {
+      logger.error('Job execution failed', err, {
+        jobId: job.id,
+        taskId: job.data.taskId,
+        appName: job.data.appName,
+      });
+    }
   });
 
   worker.on('progress', (job, progress) => {
     const p = progress as BuildJobProgress;
-    console.log(`⏳ Job ${job.id}: ${p.message} (${p.percent}%)`);
+    if (logger) {
+      // 显示步骤说明和百分比
+      logger.debug(`[${p.percent}%] ${p.message}`, {
+        taskId: job.data.taskId,
+      });
+    }
+  });
+
+  worker.on('error', (err) => {
+    if (logger) {
+      logger.error('Worker error', err);
+    }
   });
 
   return worker;

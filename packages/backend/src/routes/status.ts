@@ -4,6 +4,7 @@ import fs from 'fs-extra';
 import { getJobStatus, getJob, removeJob } from '../services/queue.js';
 import { apkExists, getApkSize, cleanupTask } from '../services/storage.js';
 import type { ServerConfig } from '../index.js';
+import type { Logger } from '../utils/logger.js';
 
 interface StatusRouteOptions {
   config: ServerConfig;
@@ -169,7 +170,8 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
     // Cleanup files
     await cleanupTask(taskId, appName, { buildsDir: config.buildsDir });
 
-    fastify.log.info({ taskId }, 'Task deleted');
+    const logger: Logger = request.logger;
+    logger.info('Task deleted', { taskId, appName });
 
     return {
       message: `Task ${taskId} has been deleted`,

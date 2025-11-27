@@ -8,6 +8,15 @@ import { fileURLToPath } from 'url';
 import { buildRoutes } from './routes/build.js';
 import { statusRoutes } from './routes/status.js';
 import { getRedisConnection } from './services/queue.js';
+import { createLogger, createRequestLogger, Logger } from './utils/logger.js';
+
+// 声明 Fastify 扩展类型
+declare module 'fastify' {
+  interface FastifyRequest {
+    logger: Logger;
+    startTime: number;
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,16 +49,42 @@ const defaultConfig: ServerConfig = {
 export async function createServer(config: Partial<ServerConfig> = {}) {
   const finalConfig = { ...defaultConfig, ...config };
 
+  // 根 Logger 用于启动日志
+  const rootLogger = createLogger({ component: 'api' });
+
   const fastify = Fastify({
+    // 禁用 Fastify 内置的请求日志，使用我们自己的
+    disableRequestLogging: true,
     logger: {
+      level: process.env.LOG_LEVEL || 'info',
       transport: {
         target: 'pino-pretty',
         options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
+          translateTime: 'HH:mm:ss.SSS',
+          ignore: 'pid,hostname,reqId,req,res,responseTime',
         },
       },
     },
+  });
+
+  // 为每个请求添加追踪 Logger
+  fastify.addHook('onRequest', async (request) => {
+    request.startTime = Date.now();
+    request.logger = createRequestLogger(fastify.log, {
+      ip: request.ip,
+      method: request.method,
+      url: request.url,
+      headers: request.headers as Record<string, string | string[] | undefined>,
+    });
+  });
+
+  // 请求完成时记录日志（单条精简日志）
+  fastify.addHook('onResponse', async (request, reply) => {
+    const durationMs = Date.now() - request.startTime;
+    // 跳过健康检查和静态文件
+    if (request.url === '/health' || request.url.startsWith('/downloads/')) return;
+    
+    request.logger.requestEnd(request.method, request.url, reply.statusCode, durationMs);
   });
 
   // Register CORS
@@ -86,9 +121,12 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
         retryAfter: context.after,
       }),
     });
-    console.log(`🛡️  Rate limiting enabled: ${finalConfig.rateLimitMax} builds per ${finalConfig.rateLimitWindow}`);
+    rootLogger.info('Rate limiting enabled', {
+      maxRequests: finalConfig.rateLimitMax,
+      window: finalConfig.rateLimitWindow,
+    });
   } else {
-    console.log('⚠️  Rate limiting DISABLED (dev mode)');
+    rootLogger.warn('Rate limiting DISABLED (dev mode)');
   }
 
   // Serve static files (built APKs)
@@ -139,6 +177,7 @@ const isMain = process.argv[1]?.endsWith('index.js') ||
                process.argv[1]?.endsWith('index.ts');
 
 if (isMain) {
+  const startupLogger = createLogger({ component: 'api' });
   const server = await createServer();
 
   try {
@@ -146,9 +185,13 @@ if (isMain) {
       port: defaultConfig.port, 
       host: defaultConfig.host 
     });
-    console.log(`🚀 Demo2APK API running at http://${defaultConfig.host}:${defaultConfig.port}`);
+    startupLogger.info('Demo2APK API started', {
+      host: defaultConfig.host,
+      port: defaultConfig.port,
+      url: `http://${defaultConfig.host}:${defaultConfig.port}`,
+    });
   } catch (err) {
-    server.log.error(err);
+    startupLogger.error('Failed to start server', err);
     process.exit(1);
   }
 }

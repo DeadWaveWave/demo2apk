@@ -1,9 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
 import { nanoid } from 'nanoid';
-import path from 'path';
 import { addBuildJob, BuildJobData } from '../services/queue.js';
 import { saveUploadedFile, initStorage } from '../services/storage.js';
 import type { ServerConfig } from '../index.js';
+import type { Logger } from '../utils/logger.js';
 
 interface BuildRouteOptions {
   config: ServerConfig;
@@ -63,9 +63,20 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Generate task ID
     const taskId = nanoid(12);
 
+    // 获取请求的 Logger
+    const logger: Logger = request.logger;
+    const fileBuffer = await data.toBuffer();
+    const fileSize = fileBuffer.length;
+
+    logger.info('HTML file received', {
+      taskId,
+      appName,
+      fileName: data.filename,
+      fileSize,
+    });
+
     try {
       // Save uploaded file
-      const fileBuffer = await data.toBuffer();
       const filePath = await saveUploadedFile(
         fileBuffer,
         data.filename,
@@ -87,7 +98,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      fastify.log.info({ taskId, appName, type: 'html' }, 'Build job created');
+      logger.buildCreated(taskId, appName, 'html', { fileSize, appId });
 
       return {
         taskId,
@@ -97,7 +108,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         downloadUrl: `/api/build/${taskId}/download`,
       };
     } catch (error) {
-      fastify.log.error({ error, taskId }, 'Failed to create build job');
+      logger.error('Failed to create HTML build job', error, { taskId, appName });
       return reply.status(500).send({
         error: 'Internal Server Error',
         message: 'Failed to create build job',
@@ -138,9 +149,21 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Generate task ID
     const taskId = nanoid(12);
 
+    // 获取请求的 Logger
+    const logger: Logger = request.logger;
+    const fileBuffer = await data.toBuffer();
+    const fileSize = fileBuffer.length;
+
+    logger.info('ZIP file received', {
+      taskId,
+      appName,
+      appId,
+      fileName: data.filename,
+      fileSize,
+    });
+
     try {
       // Save uploaded file
-      const fileBuffer = await data.toBuffer();
       const filePath = await saveUploadedFile(
         fileBuffer,
         data.filename,
@@ -162,7 +185,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      fastify.log.info({ taskId, appName, type: 'zip' }, 'Build job created');
+      logger.buildCreated(taskId, appName, 'zip', { fileSize, appId });
 
       return {
         taskId,
@@ -172,7 +195,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         downloadUrl: `/api/build/${taskId}/download`,
       };
     } catch (error) {
-      fastify.log.error({ error, taskId }, 'Failed to create build job');
+      logger.error('Failed to create ZIP build job', error, { taskId, appName, appId });
       return reply.status(500).send({
         error: 'Internal Server Error',
         message: 'Failed to create build job',

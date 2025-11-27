@@ -8,6 +8,10 @@ import {
   getRedisConnection,
 } from './services/queue.js';
 import { buildHtmlToApk, buildReactToApk } from '@demo2apk/core';
+import { createLogger, Logger } from './utils/logger.js';
+
+// Worker 根 Logger
+const logger = createLogger({ component: 'worker' });
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const MOCK_BUILD = process.env.MOCK_BUILD === 'true';
@@ -20,8 +24,11 @@ const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 1
  */
 async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<BuildJobResult> {
   const { type, filePath, appName, appId, outputDir, taskId } = job.data;
+  const startTime = Date.now();
 
-  console.log(`\n🔨 Processing job ${taskId} (${type}): ${appName}`);
+  // 为此任务创建子 Logger
+  const jobLogger = logger.child({ taskId, appName, buildType: type, appId });
+  jobLogger.buildStart(taskId, appName, type);
 
   // Update progress callback
   const onProgress = async (message: string, percent?: number) => {
@@ -33,7 +40,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
 
   // Mock build for testing
   if (MOCK_BUILD) {
-    console.log('⚠️  MOCK_BUILD enabled - returning fake APK');
+    jobLogger.warn('MOCK_BUILD enabled - returning fake APK');
 
     await onProgress('Starting mock build...', 10);
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -59,48 +66,67 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
     }
 
     await onProgress('Build completed!', 100);
+    const duration = Date.now() - startTime;
+
+    jobLogger.buildComplete(taskId, appName, true, duration, { apkPath: mockApkDest, mock: true });
 
     return {
       success: true,
       apkPath: mockApkDest,
-      duration: 3500,
+      duration,
     };
   }
 
   try {
+    let result: BuildJobResult;
+
     if (type === 'html') {
-      const result = await buildHtmlToApk({
+      result = await buildHtmlToApk({
         htmlPath: filePath,
         appName,
         appId,
         outputDir,
         onProgress,
       });
-
-      return result;
     } else if (type === 'zip') {
-      const result = await buildReactToApk({
+      result = await buildReactToApk({
         zipPath: filePath,
         appName,
         appId,
         outputDir,
         onProgress,
       });
-
-      return result;
     } else {
+      jobLogger.error('Unknown build type', new Error(`Unknown build type: ${type}`));
       return {
         success: false,
         error: `Unknown build type: ${type}`,
       };
     }
+
+    const duration = Date.now() - startTime;
+    
+    if (result.success) {
+      // 获取 APK 文件大小
+      let apkSize: number | undefined;
+      if (result.apkPath && await fs.pathExists(result.apkPath)) {
+        const stats = await fs.stat(result.apkPath);
+        apkSize = stats.size;
+      }
+      jobLogger.buildComplete(taskId, appName, true, duration, { apkPath: result.apkPath, apkSize });
+    } else {
+      jobLogger.buildComplete(taskId, appName, false, duration, { error: result.error });
+    }
+
+    return { ...result, duration };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`❌ Build failed for job ${taskId}:`, message);
+    const duration = Date.now() - startTime;
+    jobLogger.error('Build failed with exception', error, { durationMs: duration });
 
     return {
       success: false,
-      error: message,
+      error: error instanceof Error ? error.message : String(error),
+      duration,
     };
   }
 }
@@ -109,9 +135,11 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
  * Cleanup old build files
  */
 async function cleanupOldBuilds() {
+  const cleanupLogger = logger.child({ operation: 'cleanup' });
   const retentionMs = FILE_RETENTION_HOURS * 60 * 60 * 1000;
   const now = Date.now();
   let cleanedCount = 0;
+  const cleanedItems: string[] = [];
 
   try {
     if (!await fs.pathExists(BUILDS_DIR)) {
@@ -134,7 +162,7 @@ async function cleanupOldBuilds() {
             await fs.unlink(entryPath);
           }
           cleanedCount++;
-          console.log(`🗑️  Cleaned up expired: ${entry.name}`);
+          cleanedItems.push(entry.name);
         }
       } catch (err) {
         // Ignore errors for individual files
@@ -142,30 +170,36 @@ async function cleanupOldBuilds() {
     }
 
     if (cleanedCount > 0) {
-      console.log(`🧹 Cleanup complete: removed ${cleanedCount} expired items`);
+      cleanupLogger.info('Cleanup completed', {
+        removedCount: cleanedCount,
+        retentionHours: FILE_RETENTION_HOURS,
+        items: cleanedItems.slice(0, 10), // 只记录前10个
+      });
     }
   } catch (err) {
-    console.error('❌ Cleanup error:', err);
+    cleanupLogger.error('Cleanup failed', err);
   }
 }
 
 // Start the worker
-console.log('🚀 Starting Demo2APK Worker...');
-console.log(`📡 Redis URL: ${REDIS_URL}`);
-console.log(`🔧 Mock Build: ${MOCK_BUILD}`);
-console.log(`🕐 File Retention: ${FILE_RETENTION_HOURS} hours`);
+logger.info('Worker starting', {
+  redisUrl: REDIS_URL.replace(/\/\/.*@/, '//*****@'), // 隐藏密码
+  mockBuild: MOCK_BUILD,
+  fileRetentionHours: FILE_RETENTION_HOURS,
+  concurrency: parseInt(process.env.WORKER_CONCURRENCY || '2', 10),
+});
 
-const worker = createBuildWorker(REDIS_URL, processBuildJob);
+const worker = createBuildWorker(REDIS_URL, processBuildJob, logger);
 
 // Handle graceful shutdown
 const shutdown = async () => {
-  console.log('\n⏹️  Shutting down worker...');
+  logger.info('Worker shutting down...');
   await worker.close();
 
   const redis = getRedisConnection(REDIS_URL);
   redis.disconnect();
 
-  console.log('👋 Worker shut down gracefully');
+  logger.info('Worker shut down gracefully');
   process.exit(0);
 };
 
@@ -176,8 +210,11 @@ process.on('SIGINT', shutdown);
 cleanupOldBuilds();
 
 // Schedule periodic cleanup (every 30 minutes)
-const cleanupInterval = setInterval(cleanupOldBuilds, 30 * 60 * 1000);
+setInterval(cleanupOldBuilds, 30 * 60 * 1000);
 
-console.log('✅ Worker is running and waiting for jobs...');
-console.log(`🧹 Auto-cleanup scheduled every 30 minutes (retention: ${FILE_RETENTION_HOURS}h)`);
+logger.info('Worker ready', {
+  status: 'waiting_for_jobs',
+  cleanupIntervalMinutes: 30,
+  fileRetentionHours: FILE_RETENTION_HOURS,
+});
 

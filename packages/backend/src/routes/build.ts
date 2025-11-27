@@ -20,13 +20,23 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
   // Initialize storage
   await initStorage({ buildsDir: config.buildsDir });
 
+  // Rate limit config for build endpoints only
+  const rateLimitConfig = config.rateLimitEnabled ? {
+    config: {
+      rateLimit: {
+        max: config.rateLimitMax,
+        timeWindow: config.rateLimitWindow,
+      }
+    }
+  } : {};
+
   /**
    * POST /api/build/html
    * Upload HTML file to build APK
    */
   fastify.post<{
     Body: BuildRequestBody;
-  }>('/html', async (request, reply) => {
+  }>('/html', { ...rateLimitConfig }, async (request, reply) => {
     const data = await request.file();
     
     if (!data) {
@@ -101,7 +111,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
    */
   fastify.post<{
     Body: BuildRequestBody;
-  }>('/zip', async (request, reply) => {
+  }>('/zip', { ...rateLimitConfig }, async (request, reply) => {
     const data = await request.file();
     
     if (!data) {

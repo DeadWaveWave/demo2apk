@@ -66,9 +66,11 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
   });
 
   // Register rate limiting (can be disabled in dev mode)
+  // ONLY limit build endpoints (POST requests), not status queries
   const redis = getRedisConnection(finalConfig.redisUrl);
   if (finalConfig.rateLimitEnabled) {
     await fastify.register(rateLimit, {
+      global: false, // Disable global rate limiting, we'll apply it selectively
       max: finalConfig.rateLimitMax,
       timeWindow: finalConfig.rateLimitWindow,
       redis,
@@ -77,14 +79,14 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
         return request.headers['x-forwarded-for']?.toString().split(',')[0] || 
                request.ip;
       },
-      errorResponseBuilder: (request, context) => ({
+      errorResponseBuilder: (_request, context) => ({
         statusCode: 429,
         error: 'Too Many Requests',
-        message: `Rate limit exceeded. You can make ${context.max} requests per ${context.after}. Please try again later.`,
+        message: `构建次数已达上限。每 ${context.after} 最多可构建 ${context.max} 次，请稍后再试。`,
         retryAfter: context.after,
       }),
     });
-    console.log(`🛡️  Rate limiting enabled: ${finalConfig.rateLimitMax} requests per ${finalConfig.rateLimitWindow}`);
+    console.log(`🛡️  Rate limiting enabled: ${finalConfig.rateLimitMax} builds per ${finalConfig.rateLimitWindow}`);
   } else {
     console.log('⚠️  Rate limiting DISABLED (dev mode)');
   }

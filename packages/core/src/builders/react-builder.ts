@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execa, execaCommand } from 'execa';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
+import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
 
 export interface ReactBuildOptions {
   zipPath: string;
@@ -182,6 +183,15 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     if (projectType === 'nextjs') {
       onProgress?.('Configuring Next.js for static export...', 20);
       await configureNextjsExport(projectDir);
+    }
+
+    // Fix Vite project for APK compatibility (AI Studio generated projects, etc.)
+    if (projectType === 'vite' && await needsViteProjectFix(projectDir)) {
+      onProgress?.('Fixing Vite config for APK compatibility...', 22);
+      const fixResult = await fixViteProject(projectDir);
+      if (fixResult.fixed) {
+        onProgress?.(`Applied fixes: ${fixResult.changes.join(', ')}`, 24);
+      }
     }
 
     onProgress?.('Installing dependencies...', 25);

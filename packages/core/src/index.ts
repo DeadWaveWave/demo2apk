@@ -29,3 +29,8 @@ export {
   type OfflineifyResult,
 } from './utils/offlineify.js';
 
+export {
+  fixViteProject,
+  needsViteProjectFix,
+  type FixResult,
+} from './utils/react-project-fixer.js';

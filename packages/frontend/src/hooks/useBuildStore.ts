@@ -53,6 +53,12 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+        
+        // Handle rate limit error specifically
+        if (response.status === 429) {
+          throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
+        }
+        
         throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
       }
 
@@ -109,7 +115,9 @@ async function pollBuildStatus(
       const response = await fetch(`/api/build/${taskId}/status`)
       
       if (!response.ok) {
-        throw new Error(`STATUS CHECK FAILED: ${response.status}`)
+        // Try to parse error message from response
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `STATUS CHECK FAILED: ${response.status}`)
       }
 
       const data = await response.json()

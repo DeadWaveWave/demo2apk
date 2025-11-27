@@ -196,8 +196,12 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
 
     onProgress?.('Installing dependencies...', 25);
 
-    // Install dependencies
-    await execa(packageManager, ['install'], {
+    // Install dependencies (use --legacy-peer-deps for npm to handle version conflicts)
+    const installArgs = packageManager === 'npm' 
+      ? ['install', '--legacy-peer-deps'] 
+      : ['install'];
+    
+    await execa(packageManager, installArgs, {
       cwd: projectDir,
     });
 
@@ -216,8 +220,12 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
 
     onProgress?.('Installing Capacitor...', 55);
 
-    // Install Capacitor
-    await execa(packageManager, ['install', '@capacitor/core', '@capacitor/cli', '@capacitor/android'], {
+    // Install Capacitor (use --legacy-peer-deps for npm)
+    const capacitorInstallArgs = packageManager === 'npm'
+      ? ['install', '--legacy-peer-deps', '@capacitor/core', '@capacitor/cli', '@capacitor/android']
+      : ['install', '@capacitor/core', '@capacitor/cli', '@capacitor/android'];
+    
+    await execa(packageManager, capacitorInstallArgs, {
       cwd: projectDir,
     });
 

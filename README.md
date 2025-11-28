@@ -10,7 +10,7 @@
 
 **Turn your Vibe Coding ideas into runnable Android Apps instantly.**
 
-> 💡 **Scenario**: When you've built a demo on platforms like **Gemini**, **ChatGPT**, **DeepSeek**, **Qwen**, etc. and want to install it on your phone, Demo2APK is the perfect tool to turn your files into an installable Android APK instantly!
+> 💡 **Scenario**: When you've built a demo on platforms like **Gemini**, **ChatGPT**, **DeepSeek**, **Qwen**, etc. and want to install it on your phone, Demo2APK is the perfect tool to turn your files into an installable Android APK instantly. Please don't accept APK files from others, as they may contain security risks!
 
 Demo2APK is a one-click packaging tool built for Vibe Coding users. Whether you have a brilliant HTML prototype or a complete React project, just upload your files, and we'll generate an installable APK for you immediately. No complex Android development environment setup required—keep your creativity at your fingertips.
 

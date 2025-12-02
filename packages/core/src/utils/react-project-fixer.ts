@@ -21,7 +21,7 @@ export async function fixViteProject(projectDir: string): Promise<FixResult> {
   const viteConfigPath = await findViteConfig(projectDir);
   if (!viteConfigPath) {
     return { fixed: false, changes: [] };
-  }
+  } 
   
   // Read package.json to check for dependencies
   const pkgPath = path.join(projectDir, 'package.json');
@@ -206,6 +206,7 @@ async function ensureIndexCss(projectDir: string, changes: string[]): Promise<vo
   }
   
   const cssPath = path.join(projectDir, 'index.css');
+  const rootReset = `/* Ensured by Demo2APK */\nhtml, body, #root {\n  height: 100%;\n  width: 100%;\n  margin: 0;\n  padding: 0;\n}\n`;
   
   // Check if file needs Tailwind directives
   const hasTailwind = indexHtml.includes('tailwind') || 
@@ -227,6 +228,12 @@ ${existingCss}`;
         changes.push("Added Tailwind directives to index.css");
       }
     }
+    // Ensure root full-size reset exists
+    const ensureCss = await fs.readFile(cssPath, 'utf8');
+    if (!ensureCss.includes('html, body, #root')) {
+      await fs.appendFile(cssPath, `\n${rootReset}`, 'utf8');
+      changes.push("Added root full-size CSS to index.css");
+    }
     return;
   }
   
@@ -242,6 +249,15 @@ ${existingCss}`;
 `, 'utf8');
     changes.push("Created missing index.css file");
   }
+  
+  // Safety: ensure root reset exists (for files we just created)
+  try {
+    const createdCss = await fs.readFile(cssPath, 'utf8');
+    if (!createdCss.includes('html, body, #root')) {
+      await fs.appendFile(cssPath, `\n${rootReset}`, 'utf8');
+      changes.push("Ensured root full-size CSS in new index.css");
+    }
+  } catch {}
 }
 
 /**
@@ -428,4 +444,3 @@ export async function needsViteProjectFix(projectDir: string): Promise<boolean> 
   
   return !hasBase || !hasLegacy;
 }
-

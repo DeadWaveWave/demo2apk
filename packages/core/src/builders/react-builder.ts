@@ -185,9 +185,12 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       await configureNextjsExport(projectDir);
     }
 
-    // Fix Vite project for APK compatibility (AI Studio generated projects, etc.)
-    if (projectType === 'vite' && await needsViteProjectFix(projectDir)) {
-      onProgress?.('Fixing Vite config for APK compatibility...', 22);
+    // Fix/verify Vite project for APK compatibility (also handles missing index.css)
+    if (projectType === 'vite') {
+      const shouldFix = await needsViteProjectFix(projectDir);
+      onProgress?.(shouldFix
+        ? 'Fixing Vite config for APK compatibility...'
+        : 'Verifying Vite project setup (CSS, Tailwind, etc.)...', 22);
       const fixResult = await fixViteProject(projectDir);
       if (fixResult.fixed) {
         onProgress?.(`Applied fixes: ${fixResult.changes.join(', ')}`, 24);
@@ -255,8 +258,13 @@ export default config;
     onProgress?.('Adding Android platform...', 65);
 
     // Add Android platform
+    // Some CLIs (including Capacitor) detect package manager via npm_config_user_agent,
+    // which can be inherited from the monorepo (e.g. pnpm). Force it to match the
+    // actual manager we used to install deps to avoid wrong Gradle paths.
+    const pkgAgent = packageManager === 'pnpm' ? 'pnpm' : (packageManager === 'yarn' ? 'yarn' : 'npm');
     await execa('npx', ['cap', 'add', 'android'], {
       cwd: projectDir,
+      env: { ...process.env, npm_config_user_agent: pkgAgent },
     });
 
     onProgress?.('Syncing web resources...', 70);
@@ -264,7 +272,31 @@ export default config;
     // Sync resources
     await execa('npx', ['cap', 'sync', 'android'], {
       cwd: projectDir,
+      env: { ...process.env, npm_config_user_agent: pkgAgent },
     });
+
+    // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
+    // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,
+    // but the standard node_modules path exists, rewrite it for a reliable build.
+    try {
+      const capSettings = path.join(projectDir, 'android', 'capacitor.settings.gradle');
+      if (await fs.pathExists(capSettings)) {
+        let content = await fs.readFile(capSettings, 'utf8');
+        const pnpmPathMatch = content.match(/project\(':capacitor-android'\)\.projectDir = new File\('(.*)'\)/);
+        const npmPath = "../node_modules/@capacitor/android/capacitor";
+        const npmAbsolute = path.join(projectDir, 'node_modules', '@capacitor', 'android', 'capacitor');
+        const pnpmPath = pnpmPathMatch?.[1] ?? '';
+        const pnpmAbsolute = path.resolve(path.join(projectDir, 'android', pnpmPath));
+        const npmExists = await fs.pathExists(npmAbsolute);
+        const pnpmExists = pnpmPath && await fs.pathExists(pnpmAbsolute);
+        if (!pnpmExists && npmExists && pnpmPath.includes('.pnpm')) {
+          content = content.replace(/project\(':capacitor-android'\)\.projectDir = new File\('(.*)'\)/, `project(':capacitor-android').projectDir = new File('${npmPath}')`);
+          await fs.writeFile(capSettings, content, 'utf8');
+        }
+      }
+    } catch {
+      // Non-fatal – continue with build
+    }
 
     onProgress?.('Building APK (this may take a few minutes)...', 80);
 
@@ -314,4 +346,3 @@ export default config;
     };
   }
 }
-

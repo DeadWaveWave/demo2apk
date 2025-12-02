@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import path from 'path';
 import { nanoid } from 'nanoid';
 import { addBuildJob, BuildJobData } from '../services/queue.js';
 import { saveUploadedFile, initStorage } from '../services/storage.js';
@@ -57,7 +58,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
     // Get form fields
     const fields = data.fields as Record<string, { value?: string }>;
-    const appName = fields.appName?.value || 'MyVibeApp';
+    const uploadedBaseName = path.parse(data.filename).name;
+    const appName = (fields.appName?.value || uploadedBaseName || 'MyVibeApp').trim();
     const appId = fields.appId?.value;
 
     // Generate task ID
@@ -143,7 +145,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
     // Get form fields
     const fields = data.fields as Record<string, { value?: string }>;
-    const appName = fields.appName?.value || 'MyReactApp';
+    // Default app name to the ZIP base filename when not provided
+    const uploadedBaseName = path.parse(data.filename).name;
+    const appName = (fields.appName?.value || uploadedBaseName || 'MyReactApp').trim();
     const appId = fields.appId?.value || 'com.example.reactapp';
 
     // Generate task ID
@@ -203,4 +207,3 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     }
   });
 };
-

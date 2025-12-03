@@ -29,10 +29,13 @@ export default function Header() {
       <div className="absolute top-0 left-0 w-full h-[2px] bg-bp-blue/50" />
 
       <div className="flex items-center gap-3 md:gap-6">
-        {/* Technical Logo Block */}
-        <div className="w-8 h-8 md:w-12 md:h-12 border border-bp-blue flex flex-col items-center justify-center bg-bp-blue/5 relative corner-brackets flex-shrink-0">
-          <span className="text-[8px] md:text-xs font-tech text-bp-blue/50 absolute top-0.5 left-0.5 md:top-1 md:left-1">01</span>
-          <div className="w-4 h-4 md:w-6 md:h-6 border border-bp-blue transform rotate-45" />
+        {/* Logo */}
+        <div className="w-10 h-10 md:w-14 md:h-14 flex-shrink-0 relative">
+          <img 
+            src="/logo.png" 
+            alt="Demo2APK Logo" 
+            className="w-full h-full object-contain"
+          />
         </div>
 
         <div>

@@ -14,7 +14,7 @@ interface BuildState {
   retentionHours: number | null
   
   // Actions
-  startBuild: (file: File, type: 'html' | 'zip', appName?: string) => Promise<void>
+  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => Promise<void>
   reset: () => void
 }
 
@@ -29,7 +29,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   expiresAt: null,
   retentionHours: null,
 
-  startBuild: async (file: File, type: 'html' | 'zip', appName?: string) => {
+  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => {
     set({ 
       status: 'uploading', 
       progress: 0, 
@@ -46,6 +46,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       formData.append('file', file)
       if (appName) {
         formData.append('appName', appName)
+      }
+      if (iconFile) {
+        formData.append('icon', iconFile)
       }
 
       const uploadUrl = type === 'html' ? '/api/build/html' : '/api/build/zip'

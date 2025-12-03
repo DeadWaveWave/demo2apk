@@ -50,6 +50,7 @@ const resources = {
                 maxSizeLabel: 'MAX_SIZE: 50MB // FMT: {{format}}',
                 submitReady: '>> INITIATE APK BUILD <<',
                 submitDisabled: 'ENTER HTML CODE',
+                enterAppName: 'ENTER APP NAME FIRST',
                 charCount: 'CHARS: {{count}}',
                 htmlSupport: 'SUPPORTS COMPLETE HTML FILE CODE',
                 warningTitle: 'WARNING: BLANK SCREEN PREVENTION',
@@ -67,6 +68,9 @@ const resources = {
   <!-- PASTE YOUR HTML CODE HERE -->
 </body>
 </html>`,
+                iconLabel: 'APP ICON',
+                iconPlaceholder: 'Optional: Upload custom icon',
+                removeIcon: 'Remove icon',
             },
             progress: {
                 statusProcessing: 'STATUS: PROCESSING...',
@@ -164,6 +168,7 @@ const resources = {
                 maxSizeLabel: '最大：50MB // 格式：{{format}}',
                 submitReady: '>> 启动 APK 构建 <<',
                 submitDisabled: '请输入 HTML 代码',
+                enterAppName: '请先输入应用名称',
                 charCount: '字符：{{count}}',
                 htmlSupport: '支持完整 HTML 文件代码',
                 warningTitle: '警告：白屏防护',
@@ -181,6 +186,9 @@ const resources = {
   <!-- 将 HTML 代码粘贴到此处 -->
 </body>
 </html>`,
+                iconLabel: '应用图标',
+                iconPlaceholder: '可选：上传自定义图标',
+                removeIcon: '移除图标',
             },
             progress: {
                 statusProcessing: '状态：处理中...',

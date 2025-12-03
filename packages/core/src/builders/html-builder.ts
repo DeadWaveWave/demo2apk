@@ -25,6 +25,7 @@ export interface HtmlBuildOptions {
   appId?: string;
   outputDir?: string;
   skipOfflineify?: boolean;
+  iconPath?: string;  // Custom icon path (optional)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -64,20 +65,28 @@ async function resizeIcon(inputPath: string, outputPath: string, size: number): 
 }
 
 /**
- * Inject default icon into Cordova project
+ * Inject icon into Cordova project
+ * Uses custom icon if provided, otherwise falls back to default icon
  */
-async function injectDefaultIcon(
+async function injectIcon(
   workDir: string,
+  customIconPath?: string,
   onProgress?: (message: string) => void
 ): Promise<void> {
-  const defaultIconPath = getDefaultIconPath();
+  // Determine which icon to use
+  let iconPath: string;
   
-  if (!(await fs.pathExists(defaultIconPath))) {
-    onProgress?.('Default icon not found, skipping icon injection');
-    return;
+  if (customIconPath && await fs.pathExists(customIconPath)) {
+    iconPath = customIconPath;
+    onProgress?.('Injecting custom app icon...');
+  } else {
+    iconPath = getDefaultIconPath();
+    if (!(await fs.pathExists(iconPath))) {
+      onProgress?.('No icon found, skipping icon injection');
+      return;
+    }
+    onProgress?.('Injecting default app icon...');
   }
-
-  onProgress?.('Injecting default app icon...');
 
   // Create res directory for icons
   const resDir = path.join(workDir, 'res');
@@ -90,11 +99,11 @@ async function injectDefaultIcon(
   // Resize and copy icon for each density
   for (const [density, size] of Object.entries(ANDROID_ICON_SIZES)) {
     const outputPath = path.join(iconDir, `icon-${density}.png`);
-    await resizeIcon(defaultIconPath, outputPath, size);
+    await resizeIcon(iconPath, outputPath, size);
   }
 
   // Also create the main icon (use xxxhdpi size = 192)
-  await resizeIcon(defaultIconPath, path.join(resDir, 'icon.png'), 192);
+  await resizeIcon(iconPath, path.join(resDir, 'icon.png'), 192);
 
   // Update config.xml to include icon configuration
   const configXmlPath = path.join(workDir, 'config.xml');
@@ -241,6 +250,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     appId = generateAppId(appName),
     outputDir = path.join(process.cwd(), 'builds'),
     skipOfflineify = false,
+    iconPath,
     onProgress,
   } = options;
 
@@ -308,9 +318,9 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       timeout: 60000,
     });
 
-    // Inject default icon
-    onProgress?.('Injecting default app icon...', 42);
-    await injectDefaultIcon(workDir, onProgress);
+    // Inject app icon (custom or default)
+    onProgress?.('Injecting app icon...', 42);
+    await injectIcon(workDir, iconPath, onProgress);
 
     onProgress?.('Preparing web resources...', 45);
 

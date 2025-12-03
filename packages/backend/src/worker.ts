@@ -23,7 +23,7 @@ const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 1
  * Process a build job
  */
 async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<BuildJobResult> {
-  const { type, filePath, appName, appId, outputDir, taskId } = job.data;
+  const { type, filePath, appName, appId, iconPath, outputDir, taskId } = job.data;
   const startTime = Date.now();
 
   // 为此任务创建子 Logger
@@ -85,6 +85,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         htmlPath: filePath,
         appName,
         appId,
+        iconPath,
         outputDir,
         onProgress,
       });
@@ -93,6 +94,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         zipPath: filePath,
         appName,
         appId,
+        iconPath,
         outputDir,
         onProgress,
       });

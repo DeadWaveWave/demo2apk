@@ -10,6 +10,7 @@ export interface BuildJobData {
   filePath: string;
   appName: string;
   appId?: string;
+  iconPath?: string;  // Custom icon path (optional)
   outputDir: string;
   createdAt: string;
 }

@@ -54,20 +54,28 @@ async function resizeIcon(inputPath: string, outputPath: string, size: number): 
 }
 
 /**
- * Inject default icon into Capacitor Android project
+ * Inject icon into Capacitor Android project
+ * Uses custom icon if provided, otherwise falls back to default icon
  */
-async function injectDefaultIconCapacitor(
+async function injectIconCapacitor(
   androidDir: string,
+  customIconPath?: string,
   onProgress?: (message: string) => void
 ): Promise<void> {
-  const defaultIconPath = getDefaultIconPath();
+  // Determine which icon to use
+  let iconPath: string;
   
-  if (!(await fs.pathExists(defaultIconPath))) {
-    onProgress?.('Default icon not found, skipping icon injection');
-    return;
+  if (customIconPath && await fs.pathExists(customIconPath)) {
+    iconPath = customIconPath;
+    onProgress?.('Injecting custom app icon...');
+  } else {
+    iconPath = getDefaultIconPath();
+    if (!(await fs.pathExists(iconPath))) {
+      onProgress?.('No icon found, skipping icon injection');
+      return;
+    }
+    onProgress?.('Injecting default app icon...');
   }
-
-  onProgress?.('Injecting default app icon...');
 
   const resDir = path.join(androidDir, 'app', 'src', 'main', 'res');
 
@@ -84,8 +92,8 @@ async function injectDefaultIconCapacitor(
     
     if (await fs.pathExists(targetDir)) {
       // Resize as both ic_launcher.png and ic_launcher_round.png
-      await resizeIcon(defaultIconPath, path.join(targetDir, 'ic_launcher.png'), size);
-      await resizeIcon(defaultIconPath, path.join(targetDir, 'ic_launcher_round.png'), size);
+      await resizeIcon(iconPath, path.join(targetDir, 'ic_launcher.png'), size);
+      await resizeIcon(iconPath, path.join(targetDir, 'ic_launcher_round.png'), size);
     }
   }
 }
@@ -95,6 +103,7 @@ export interface ReactBuildOptions {
   appName?: string;
   appId?: string;
   outputDir?: string;
+  iconPath?: string;  // Custom icon path (optional)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -207,6 +216,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     appName = 'MyReactApp',
     appId = 'com.example.reactapp',
     outputDir = path.join(process.cwd(), 'builds'),
+    iconPath,
     onProgress,
   } = options;
 
@@ -361,10 +371,10 @@ export default config;
       env: { ...process.env, npm_config_user_agent: pkgAgent },
     });
 
-    // Inject default icon
-    onProgress?.('Injecting default app icon...', 75);
+    // Inject app icon (custom or default)
+    onProgress?.('Injecting app icon...', 75);
     const androidDir = path.join(projectDir, 'android');
-    await injectDefaultIconCapacitor(androidDir, onProgress);
+    await injectIconCapacitor(androidDir, iconPath, onProgress);
 
     // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
     // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,

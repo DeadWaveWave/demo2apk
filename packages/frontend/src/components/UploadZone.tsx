@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
@@ -10,8 +10,38 @@ export default function UploadZone() {
   const [appName, setAppName] = useState('')
   const [htmlCode, setHtmlCode] = useState('')
   const [useFileName, setUseFileName] = useState(true) // Default: use filename as app name
+  const [iconFile, setIconFile] = useState<File | null>(null)
+  const [iconPreview, setIconPreview] = useState<string | null>(null)
+  const iconInputRef = useRef<HTMLInputElement>(null)
   const { startBuild } = useBuildStore()
   const { t } = useTranslation()
+
+  // Handle icon file selection
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        return
+      }
+      setIconFile(file)
+      // Create preview URL
+      const url = URL.createObjectURL(file)
+      setIconPreview(url)
+    }
+  }
+
+  // Clear icon
+  const clearIcon = () => {
+    setIconFile(null)
+    if (iconPreview) {
+      URL.revokeObjectURL(iconPreview)
+      setIconPreview(null)
+    }
+    if (iconInputRef.current) {
+      iconInputRef.current.value = ''
+    }
+  }
 
   // Extract app name from filename (remove extension)
   const getAppNameFromFile = (filename: string) => {
@@ -36,20 +66,22 @@ export default function UploadZone() {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
       const finalAppName = useFileName ? getAppNameFromFile(file.name) : (appName || undefined)
-      startBuild(file, buildType === 'html' ? 'html' : 'zip', finalAppName)
+      startBuild(file, buildType === 'html' ? 'html' : 'zip', finalAppName, iconFile || undefined)
     }
-  }, [buildType, appName, useFileName, startBuild])
+  }, [buildType, appName, useFileName, iconFile, startBuild])
 
   const handleHtmlCodeSubmit = useCallback(() => {
-    if (!htmlCode.trim()) return
+    // Paste mode requires both HTML code and app name
+    if (!htmlCode.trim() || !appName.trim()) return
 
     // Create a File object from the pasted HTML code
+    // Use the app name as the filename
     const blob = new Blob([htmlCode], { type: 'text/html' })
-    const file = new File([blob], 'pasted-code.html', { type: 'text/html' })
+    const file = new File([blob], `${appName.trim()}.html`, { type: 'text/html' })
 
-    // For pasted code, use custom name or default
-    startBuild(file, 'html', appName || undefined)
-  }, [htmlCode, appName, startBuild])
+    // For pasted code, app name is required
+    startBuild(file, 'html', appName.trim(), iconFile || undefined)
+  }, [htmlCode, appName, iconFile, startBuild])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -149,13 +181,75 @@ export default function UploadZone() {
           </div>
         </div>
 
-        {/* Mode Display (Secondary Info) - Hide on mobile */}
-        <div className="border border-bp-grid bg-bp-dark/30 p-4 flex flex-col justify-center relative hidden md:flex">
-          <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-xs font-mono text-bp-dim">
-            {t('upload.currentMode')}
+        {/* Icon Upload (Optional) */}
+        <div className="relative group">
+          <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-orange z-10">
+            {t('upload.iconLabel', 'APP ICON')}
           </div>
-          <div className="font-tech text-xl text-bp-blue tracking-widest uppercase">
-            {buildType === 'html' ? t('upload.uploadHtml') : buildType === 'html-paste' ? t('upload.pasteHtml') : t('upload.reactBundle')}
+          <div className="relative border border-bp-grid hover:border-bp-orange/50 transition-colors">
+            {/* Corner decorations */}
+            <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-bp-orange/50" />
+            <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-bp-orange/50" />
+            <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-bp-orange/50" />
+            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-orange/50" />
+
+            <input
+              ref={iconInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              onChange={handleIconChange}
+              className="hidden"
+              id="icon-upload"
+            />
+
+            {iconPreview ? (
+              /* Icon Preview */
+              <div className="p-2 md:p-3 flex items-center gap-2 md:gap-3">
+                <img
+                  src={iconPreview}
+                  alt="App Icon"
+                  className="w-10 h-10 md:w-12 md:h-12 object-contain rounded border border-bp-grid"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] md:text-xs font-mono text-bp-orange truncate">
+                    {iconFile?.name}
+                  </div>
+                  <div className="text-[9px] md:text-[10px] text-bp-dim">
+                    {iconFile && `${(iconFile.size / 1024).toFixed(1)} KB`}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearIcon}
+                  className="p-1 md:p-1.5 text-bp-dim hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                  title={t('upload.removeIcon', 'Remove icon')}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* Upload Prompt */
+              <label
+                htmlFor="icon-upload"
+                className="p-3 md:p-4 flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-bp-orange/5 transition-colors"
+              >
+                <div className="w-10 h-10 md:w-12 md:h-12 border border-dashed border-bp-dim rounded flex items-center justify-center text-bp-dim group-hover:border-bp-orange/50 group-hover:text-bp-orange/70 transition-colors">
+                  <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] md:text-xs font-mono text-bp-dim group-hover:text-bp-orange/70 transition-colors">
+                    {t('upload.iconPlaceholder', 'Optional: Upload custom icon')}
+                  </div>
+                  <div className="text-[9px] md:text-[10px] text-bp-dim/60">
+                    PNG / JPG
+                  </div>
+                </div>
+              </label>
+            )}
           </div>
         </div>
       </div>
@@ -222,18 +316,18 @@ export default function UploadZone() {
           {/* Submit Button */}
           <button
             onClick={handleHtmlCodeSubmit}
-            disabled={!htmlCode.trim()}
-            className={`w-full py-3 md:py-4 font-tech text-base md:text-lg uppercase tracking-widest border relative overflow-hidden transition-all duration-300 ${htmlCode.trim()
+            disabled={!htmlCode.trim() || !appName.trim()}
+            className={`w-full py-3 md:py-4 font-tech text-base md:text-lg uppercase tracking-widest border relative overflow-hidden transition-all duration-300 ${htmlCode.trim() && appName.trim()
               ? 'border-bp-cyan text-bp-cyan hover:bg-bp-cyan hover:text-bp-dark cursor-pointer'
               : 'border-bp-grid text-bp-dim cursor-not-allowed'
               }`}
           >
             {/* Animated gradient background on hover */}
-            {htmlCode.trim() && (
+            {htmlCode.trim() && appName.trim() && (
               <div className="absolute inset-0 bg-gradient-to-r from-bp-cyan/0 via-bp-cyan/10 to-bp-cyan/0 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-1000" />
             )}
             <span className="relative z-10">
-              {htmlCode.trim() ? t('upload.submitReady') : t('upload.submitDisabled')}
+              {!appName.trim() ? t('upload.enterAppName', 'ENTER APP NAME') : htmlCode.trim() ? t('upload.submitReady') : t('upload.submitDisabled')}
             </span>
           </button>
 

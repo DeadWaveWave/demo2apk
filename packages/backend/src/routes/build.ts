@@ -33,14 +33,44 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
   /**
    * POST /api/build/html
-   * Upload HTML file to build APK
+   * Upload HTML file to build APK (with optional icon)
    */
   fastify.post<{
     Body: BuildRequestBody;
   }>('/html', { ...rateLimitConfig }, async (request, reply) => {
-    const data = await request.file();
-    
-    if (!data) {
+    // Generate task ID early for logging
+    const taskId = nanoid(12);
+    const logger: Logger = request.logger;
+
+    // Parse multipart form data
+    let htmlFile: { buffer: Buffer; filename: string } | null = null;
+    let iconFile: { buffer: Buffer; filename: string } | null = null;
+    let appName = '';
+    let appId: string | undefined;
+
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        const buffer = await part.toBuffer();
+        if (part.fieldname === 'file') {
+          htmlFile = { buffer, filename: part.filename };
+        } else if (part.fieldname === 'icon') {
+          // Validate icon file type
+          const iconFilename = part.filename.toLowerCase();
+          if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
+            iconFile = { buffer, filename: part.filename };
+          }
+        }
+      } else if (part.type === 'field') {
+        if (part.fieldname === 'appName') {
+          appName = String(part.value || '').trim();
+        } else if (part.fieldname === 'appId') {
+          appId = String(part.value || '').trim() || undefined;
+        }
+      }
+    }
+
+    if (!htmlFile) {
       return reply.status(400).send({
         error: 'Bad Request',
         message: 'No file uploaded. Please upload an HTML file.',
@@ -48,7 +78,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     }
 
     // Validate file type
-    const filename = data.filename.toLowerCase();
+    const filename = htmlFile.filename.toLowerCase();
     if (!filename.endsWith('.html') && !filename.endsWith('.htm')) {
       return reply.status(400).send({
         error: 'Bad Request',
@@ -56,35 +86,39 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       });
     }
 
-    // Get form fields
-    const fields = data.fields as Record<string, { value?: string }>;
-    const uploadedBaseName = path.parse(data.filename).name;
-    const appName = (fields.appName?.value || uploadedBaseName || 'MyVibeApp').trim();
-    const appId = fields.appId?.value;
+    // Use filename as app name if not provided
+    const uploadedBaseName = path.parse(htmlFile.filename).name;
+    appName = appName || uploadedBaseName || 'MyVibeApp';
 
-    // Generate task ID
-    const taskId = nanoid(12);
-
-    // 获取请求的 Logger
-    const logger: Logger = request.logger;
-    const fileBuffer = await data.toBuffer();
-    const fileSize = fileBuffer.length;
+    const fileSize = htmlFile.buffer.length;
 
     logger.info('HTML file received', {
       taskId,
       appName,
-      fileName: data.filename,
+      fileName: htmlFile.filename,
       fileSize,
+      hasIcon: !!iconFile,
     });
 
     try {
-      // Save uploaded file
+      // Save uploaded HTML file
       const filePath = await saveUploadedFile(
-        fileBuffer,
-        data.filename,
+        htmlFile.buffer,
+        htmlFile.filename,
         taskId,
         { buildsDir: config.buildsDir }
       );
+
+      // Save icon file if provided
+      let iconPath: string | undefined;
+      if (iconFile) {
+        iconPath = await saveUploadedFile(
+          iconFile.buffer,
+          `icon-${iconFile.filename}`,
+          taskId,
+          { buildsDir: config.buildsDir }
+        );
+      }
 
       // Create job data
       const jobData: BuildJobData = {
@@ -93,6 +127,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath,
         appName,
         appId,
+        iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
       };
@@ -100,7 +135,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      logger.buildCreated(taskId, appName, 'html', { fileSize, appId });
+      logger.buildCreated(taskId, appName, 'html', { fileSize, appId, hasIcon: !!iconPath });
 
       return {
         taskId,
@@ -120,14 +155,44 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
   /**
    * POST /api/build/zip
-   * Upload ZIP project to build APK
+   * Upload ZIP project to build APK (with optional icon)
    */
   fastify.post<{
     Body: BuildRequestBody;
   }>('/zip', { ...rateLimitConfig }, async (request, reply) => {
-    const data = await request.file();
-    
-    if (!data) {
+    // Generate task ID early for logging
+    const taskId = nanoid(12);
+    const logger: Logger = request.logger;
+
+    // Parse multipart form data
+    let zipFile: { buffer: Buffer; filename: string } | null = null;
+    let iconFile: { buffer: Buffer; filename: string } | null = null;
+    let appName = '';
+    let appId: string | undefined;
+
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        const buffer = await part.toBuffer();
+        if (part.fieldname === 'file') {
+          zipFile = { buffer, filename: part.filename };
+        } else if (part.fieldname === 'icon') {
+          // Validate icon file type
+          const iconFilename = part.filename.toLowerCase();
+          if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
+            iconFile = { buffer, filename: part.filename };
+          }
+        }
+      } else if (part.type === 'field') {
+        if (part.fieldname === 'appName') {
+          appName = String(part.value || '').trim();
+        } else if (part.fieldname === 'appId') {
+          appId = String(part.value || '').trim() || undefined;
+        }
+      }
+    }
+
+    if (!zipFile) {
       return reply.status(400).send({
         error: 'Bad Request',
         message: 'No file uploaded. Please upload a ZIP file.',
@@ -135,7 +200,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     }
 
     // Validate file type
-    const filename = data.filename.toLowerCase();
+    const filename = zipFile.filename.toLowerCase();
     if (!filename.endsWith('.zip')) {
       return reply.status(400).send({
         error: 'Bad Request',
@@ -143,37 +208,41 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       });
     }
 
-    // Get form fields
-    const fields = data.fields as Record<string, { value?: string }>;
-    // Default app name to the ZIP base filename when not provided
-    const uploadedBaseName = path.parse(data.filename).name;
-    const appName = (fields.appName?.value || uploadedBaseName || 'MyReactApp').trim();
-    const appId = fields.appId?.value || 'com.example.reactapp';
+    // Use filename as app name if not provided
+    const uploadedBaseName = path.parse(zipFile.filename).name;
+    appName = appName || uploadedBaseName || 'MyReactApp';
+    appId = appId || 'com.example.reactapp';
 
-    // Generate task ID
-    const taskId = nanoid(12);
-
-    // 获取请求的 Logger
-    const logger: Logger = request.logger;
-    const fileBuffer = await data.toBuffer();
-    const fileSize = fileBuffer.length;
+    const fileSize = zipFile.buffer.length;
 
     logger.info('ZIP file received', {
       taskId,
       appName,
       appId,
-      fileName: data.filename,
+      fileName: zipFile.filename,
       fileSize,
+      hasIcon: !!iconFile,
     });
 
     try {
-      // Save uploaded file
+      // Save uploaded ZIP file
       const filePath = await saveUploadedFile(
-        fileBuffer,
-        data.filename,
+        zipFile.buffer,
+        zipFile.filename,
         taskId,
         { buildsDir: config.buildsDir }
       );
+
+      // Save icon file if provided
+      let iconPath: string | undefined;
+      if (iconFile) {
+        iconPath = await saveUploadedFile(
+          iconFile.buffer,
+          `icon-${iconFile.filename}`,
+          taskId,
+          { buildsDir: config.buildsDir }
+        );
+      }
 
       // Create job data
       const jobData: BuildJobData = {
@@ -182,6 +251,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath,
         appName,
         appId,
+        iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
       };
@@ -189,7 +259,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      logger.buildCreated(taskId, appName, 'zip', { fileSize, appId });
+      logger.buildCreated(taskId, appName, 'zip', { fileSize, appId, hasIcon: !!iconPath });
 
       return {
         taskId,

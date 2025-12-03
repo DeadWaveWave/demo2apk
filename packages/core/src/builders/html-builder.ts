@@ -1,9 +1,23 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 import { execa, execaCommand } from 'execa';
+import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv, detectCordova } from '../utils/android-sdk.js';
 import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Get the path to the default icon asset
+ */
+function getDefaultIconPath(): string {
+  // In dist: dist/builders/html-builder.js -> assets/default-icon.png
+  // In src: src/builders/html-builder.ts -> assets/default-icon.png
+  return path.resolve(__dirname, '../../assets/default-icon.png');
+}
 
 export interface HtmlBuildOptions {
   htmlPath: string;
@@ -23,6 +37,92 @@ export interface BuildResult {
 
 const GRADLE_VERSION = '8.9';
 const GRADLE_DIST_URL = `https://mirrors.cloud.tencent.com/gradle/gradle-${GRADLE_VERSION}-bin.zip`;
+
+/**
+ * Android icon sizes for different DPI densities
+ */
+const ANDROID_ICON_SIZES: Record<string, number> = {
+  'ldpi': 36,
+  'mdpi': 48,
+  'hdpi': 72,
+  'xhdpi': 96,
+  'xxhdpi': 144,
+  'xxxhdpi': 192,
+};
+
+/**
+ * Resize icon to specified size using sharp
+ */
+async function resizeIcon(inputPath: string, outputPath: string, size: number): Promise<void> {
+  await sharp(inputPath)
+    .resize(size, size, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png({ compressionLevel: 9 })
+    .toFile(outputPath);
+}
+
+/**
+ * Inject default icon into Cordova project
+ */
+async function injectDefaultIcon(
+  workDir: string,
+  onProgress?: (message: string) => void
+): Promise<void> {
+  const defaultIconPath = getDefaultIconPath();
+  
+  if (!(await fs.pathExists(defaultIconPath))) {
+    onProgress?.('Default icon not found, skipping icon injection');
+    return;
+  }
+
+  onProgress?.('Injecting default app icon...');
+
+  // Create res directory for icons
+  const resDir = path.join(workDir, 'res');
+  await fs.ensureDir(resDir);
+
+  // Create icon directory
+  const iconDir = path.join(resDir, 'icon/android');
+  await fs.ensureDir(iconDir);
+
+  // Resize and copy icon for each density
+  for (const [density, size] of Object.entries(ANDROID_ICON_SIZES)) {
+    const outputPath = path.join(iconDir, `icon-${density}.png`);
+    await resizeIcon(defaultIconPath, outputPath, size);
+  }
+
+  // Also create the main icon (use xxxhdpi size = 192)
+  await resizeIcon(defaultIconPath, path.join(resDir, 'icon.png'), 192);
+
+  // Update config.xml to include icon configuration
+  const configXmlPath = path.join(workDir, 'config.xml');
+  if (await fs.pathExists(configXmlPath)) {
+    let configContent = await fs.readFile(configXmlPath, 'utf8');
+    
+    // Check if icon is already configured
+    if (!configContent.includes('<icon')) {
+      // Build icon configuration for Android
+      const iconConfigs = Object.entries(ANDROID_ICON_SIZES)
+        .map(([density, size]) => 
+          `    <icon density="${density}" src="res/icon/android/icon-${density}.png" width="${size}" height="${size}" />`
+        )
+        .join('\n');
+      
+      const iconXml = `
+    <!-- App Icon -->
+    <icon src="res/icon.png" />
+    <platform name="android">
+${iconConfigs}
+    </platform>`;
+
+      // Insert icon config before closing </widget> tag
+      configContent = configContent.replace('</widget>', `${iconXml}\n</widget>`);
+      await fs.writeFile(configXmlPath, configContent);
+    }
+  }
+}
 
 /**
  * Generate a valid Android package ID from app name
@@ -207,6 +307,10 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       cwd: workDir,
       timeout: 60000,
     });
+
+    // Inject default icon
+    onProgress?.('Injecting default app icon...', 42);
+    await injectDefaultIcon(workDir, onProgress);
 
     onProgress?.('Preparing web resources...', 45);
 

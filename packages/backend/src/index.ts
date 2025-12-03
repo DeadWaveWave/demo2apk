@@ -117,7 +117,7 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
       errorResponseBuilder: (_request, context) => ({
         statusCode: 429,
         error: 'Too Many Requests',
-        message: `构建次数已达上限。每 ${context.after} 最多可构建 ${context.max} 次，请稍后再试。`,
+        message: `构建次数已达上限（每小时最多 ${context.max} 次）。请 ${context.after} 后再试。`,
         retryAfter: context.after,
       }),
     });

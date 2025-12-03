@@ -15,6 +15,10 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "assets"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -26,6 +30,7 @@
     "@babel/preset-react": "^7.24.7",
     "execa": "^9.5.1",
     "fs-extra": "^11.2.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.10"
   },
   "devDependencies": {

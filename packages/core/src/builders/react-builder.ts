@@ -1,8 +1,94 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { execa, execaCommand } from 'execa';
+import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Get the path to the default icon asset
+ */
+function getDefaultIconPath(): string {
+  // In dist: dist/builders/react-builder.js -> assets/default-icon.png
+  // In src: src/builders/react-builder.ts -> assets/default-icon.png
+  return path.resolve(__dirname, '../../assets/default-icon.png');
+}
+
+/**
+ * Android mipmap icon sizes for different DPI densities
+ */
+const ANDROID_MIPMAP_SIZES: Record<string, number> = {
+  'mipmap-mdpi': 48,
+  'mipmap-hdpi': 72,
+  'mipmap-xhdpi': 96,
+  'mipmap-xxhdpi': 144,
+  'mipmap-xxxhdpi': 192,
+};
+
+/**
+ * Android adaptive icon foreground sizes (larger than launcher icons)
+ */
+const ANDROID_FOREGROUND_SIZES: Record<string, number> = {
+  'mipmap-mdpi': 108,
+  'mipmap-hdpi': 162,
+  'mipmap-xhdpi': 216,
+  'mipmap-xxhdpi': 324,
+  'mipmap-xxxhdpi': 432,
+};
+
+/**
+ * Resize icon to specified size using sharp
+ */
+async function resizeIcon(inputPath: string, outputPath: string, size: number): Promise<void> {
+  await sharp(inputPath)
+    .resize(size, size, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png({ compressionLevel: 9 })
+    .toFile(outputPath);
+}
+
+/**
+ * Inject default icon into Capacitor Android project
+ */
+async function injectDefaultIconCapacitor(
+  androidDir: string,
+  onProgress?: (message: string) => void
+): Promise<void> {
+  const defaultIconPath = getDefaultIconPath();
+  
+  if (!(await fs.pathExists(defaultIconPath))) {
+    onProgress?.('Default icon not found, skipping icon injection');
+    return;
+  }
+
+  onProgress?.('Injecting default app icon...');
+
+  const resDir = path.join(androidDir, 'app', 'src', 'main', 'res');
+
+  // Remove adaptive icon config (mipmap-anydpi-v26) to prevent icon cropping
+  // Android adaptive icons crop ~18% from edges, which ruins non-centered icons
+  const anydpiDir = path.join(resDir, 'mipmap-anydpi-v26');
+  if (await fs.pathExists(anydpiDir)) {
+    await fs.remove(anydpiDir);
+  }
+
+  // Resize and copy icon to each mipmap directory
+  for (const [mipmapDir, size] of Object.entries(ANDROID_MIPMAP_SIZES)) {
+    const targetDir = path.join(resDir, mipmapDir);
+    
+    if (await fs.pathExists(targetDir)) {
+      // Resize as both ic_launcher.png and ic_launcher_round.png
+      await resizeIcon(defaultIconPath, path.join(targetDir, 'ic_launcher.png'), size);
+      await resizeIcon(defaultIconPath, path.join(targetDir, 'ic_launcher_round.png'), size);
+    }
+  }
+}
 
 export interface ReactBuildOptions {
   zipPath: string;
@@ -275,6 +361,11 @@ export default config;
       env: { ...process.env, npm_config_user_agent: pkgAgent },
     });
 
+    // Inject default icon
+    onProgress?.('Injecting default app icon...', 75);
+    const androidDir = path.join(projectDir, 'android');
+    await injectDefaultIconCapacitor(androidDir, onProgress);
+
     // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
     // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,
     // but the standard node_modules path exists, rewrite it for a reliable build.
@@ -301,7 +392,6 @@ export default config;
     onProgress?.('Building APK (this may take a few minutes)...', 80);
 
     // Build APK
-    const androidDir = path.join(projectDir, 'android');
     await fs.chmod(path.join(androidDir, 'gradlew'), 0o755);
 
     await execa('./gradlew', ['assembleDebug', '--no-daemon'], {

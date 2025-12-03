@@ -293,6 +293,19 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       }
     }
 
+    // Remove any existing Capacitor config files to avoid TypeScript compilation errors
+    // (Capacitor will be installed later and we'll create our own config)
+    const existingCapConfig = path.join(projectDir, 'capacitor.config.ts');
+    const existingCapConfigJs = path.join(projectDir, 'capacitor.config.js');
+    if (await fs.pathExists(existingCapConfig)) {
+      await fs.remove(existingCapConfig);
+      onProgress?.('Removed existing capacitor.config.ts', 23);
+    }
+    if (await fs.pathExists(existingCapConfigJs)) {
+      await fs.remove(existingCapConfigJs);
+      onProgress?.('Removed existing capacitor.config.js', 23);
+    }
+
     onProgress?.('Installing dependencies...', 25);
 
     // Install dependencies (use --legacy-peer-deps for npm to handle version conflicts)

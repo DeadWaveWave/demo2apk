@@ -58,6 +58,10 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
       status: actualStatus,
     };
 
+    if (jobStatus.appName) {
+      response.fileName = jobStatus.appName;
+    }
+
     if (expiresAt) {
       response.expiresAt = expiresAt;
     }

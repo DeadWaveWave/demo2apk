@@ -103,6 +103,7 @@ export async function getJobStatus(
   result?: BuildJobResult;
   error?: string;
   createdAt?: string;
+  appName?: string;
 }> {
   const job = await getJob(redisUrl, taskId);
   
@@ -113,6 +114,7 @@ export async function getJobStatus(
   const state = await job.getState();
   const progress = job.progress as BuildJobProgress | undefined;
   const createdAt = job.data?.createdAt;
+  const appName = job.data?.appName;
 
   switch (state) {
     case 'completed':
@@ -121,6 +123,7 @@ export async function getJobStatus(
         progress,
         result: job.returnvalue,
         createdAt,
+        appName,
       };
     case 'failed':
       return {
@@ -128,12 +131,14 @@ export async function getJobStatus(
         progress,
         error: job.failedReason,
         createdAt,
+        appName,
       };
     case 'active':
       return {
         status: 'active',
         progress,
         createdAt,
+        appName,
       };
     case 'waiting':
     case 'delayed':
@@ -141,6 +146,7 @@ export async function getJobStatus(
       return {
         status: 'pending',
         createdAt,
+        appName,
       };
     default:
       return { status: 'not_found' };

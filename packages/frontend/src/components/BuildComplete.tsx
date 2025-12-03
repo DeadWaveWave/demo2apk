@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
 
@@ -41,10 +41,29 @@ export default function BuildComplete() {
   const { fileName, reset, downloadUrl, taskId, expiresAt, retentionHours } = useBuildStore()
   const expiryInfo = useExpiryInfo(expiresAt, retentionHours)
   const { t } = useTranslation()
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const handleDownload = () => {
     if (downloadUrl) {
       window.open(downloadUrl, '_blank')
+    }
+  }
+
+  // 生成分享链接（指向下载页面）
+  const shareUrl = useMemo(() => {
+    if (!taskId) return ''
+    return `${window.location.origin}/download/${taskId}`
+  }, [taskId])
+
+  const handleCopyLink = async () => {
+    if (shareUrl) {
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+        setLinkCopied(true)
+        setTimeout(() => setLinkCopied(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy link:', err)
+      }
     }
   }
 
@@ -103,6 +122,57 @@ export default function BuildComplete() {
             <span>{expiryInfo.label}</span>
             {expiryInfo.helper && <span className="text-xs text-bp-dim mt-1">{expiryInfo.helper}</span>}
           </div>
+        </div>
+      </div>
+
+      {/* Share Link Section */}
+      <div className="border border-bp-grid bg-bp-dark/50 p-4 max-w-md mx-auto mb-8 relative">
+        {/* Decorative Corners */}
+        <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-bp-blue" />
+        <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-bp-blue" />
+        <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-bp-blue" />
+        <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-blue" />
+
+        <div className="text-bp-dim text-xs font-mono mb-2 uppercase tracking-wider">
+          {t('complete.shareTitle')}:
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            readOnly
+            value={shareUrl}
+            className="flex-1 bg-bp-dark border border-bp-grid text-bp-text text-xs font-mono px-3 py-2 outline-none focus:border-bp-blue select-all"
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <button
+            onClick={handleCopyLink}
+            className={`px-4 py-2 border font-mono text-xs transition-all duration-300 ${
+              linkCopied
+                ? 'border-bp-cyan bg-bp-cyan/10 text-bp-cyan'
+                : 'border-bp-blue bg-bp-blue/5 text-bp-blue hover:bg-bp-blue/10'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              {linkCopied ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {t('complete.linkCopied')}
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                  {t('complete.copyLink')}
+                </>
+              )}
+            </span>
+          </button>
+        </div>
+        <div className="text-bp-dim text-[10px] font-mono mt-2 opacity-70">
+          {t('complete.shareLink')}
         </div>
       </div>
 

@@ -27,7 +27,7 @@ function App() {
       <div className="w-full max-w-5xl z-10 relative">
         <Header />
         
-        <main className="blueprint-box border-t-0 min-h-[500px] p-8 md:p-12 relative overflow-hidden">
+        <main className="blueprint-box border-t-0 min-h-[400px] p-4 md:p-12 relative overflow-hidden">
           {/* Scanline Effect */}
           <div className="absolute inset-0 bg-gradient-to-b from-bp-blue/5 to-transparent h-[10px] w-full animate-scanline pointer-events-none opacity-30" />
           
@@ -88,12 +88,12 @@ function App() {
 function Footer() {
   const { t } = useTranslation()
   return (
-    <footer className="mt-4 flex justify-between items-center text-xs font-mono text-bp-dim uppercase tracking-widest">
-      <div className="flex items-center gap-4">
+    <footer className="mt-4 flex flex-col md:flex-row gap-2 md:gap-0 justify-between items-center text-[10px] md:text-xs font-mono text-bp-dim uppercase tracking-widest">
+      <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
          <span className="text-bp-blue">{t('footer.systemStatus')}</span>
          <span className="w-2 h-2 bg-bp-cyan rounded-full animate-pulse" />
       </div>
-      <div className="flex gap-8">
+      <div className="flex gap-4 md:gap-8 w-full md:w-auto justify-between md:justify-start">
          <span>{t('footer.buildVersion')}</span>
          <span>{t('footer.latency')}</span>
          <span className="text-bp-blue/50">{t('footer.blueprintId')}</span>

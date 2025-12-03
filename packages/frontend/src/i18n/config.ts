@@ -89,6 +89,8 @@ const resources = {
                 expiryPast: 'Expired, file may have been removed',
                 retention: '(Retention {{hours}}h)',
                 unknown: 'UNKNOWN',
+                starRequest: 'ENJOYING THIS TOOL? SUPPORT US!',
+                starButton: '★ STAR ON GITHUB',
             },
             language: {
                 label: 'Language',
@@ -184,6 +186,8 @@ const resources = {
                 expiryPast: '已过期，文件可能已被移除',
                 retention: '（保留 {{hours}} 小时）',
                 unknown: '未知',
+                starRequest: '觉得好用？支持一下我们！',
+                starButton: '★ 去 GitHub 点星',
             },
             language: {
                 label: '界面语言',

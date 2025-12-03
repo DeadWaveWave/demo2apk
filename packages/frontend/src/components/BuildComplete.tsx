@@ -48,6 +48,9 @@ export default function BuildComplete() {
     }
   }
 
+  const GITHUB_REPO = 'DeadWaveWave/demo2apk'
+  const GITHUB_URL = `https://github.com/${GITHUB_REPO}`
+
   return (
     <div className="text-center py-8 animate-in relative">
       {/* Success Icon Construction */}
@@ -83,7 +86,7 @@ export default function BuildComplete() {
           <div className="text-bp-dim">{t('complete.taskId')}:</div>
           <div className="text-bp-blue flex items-center gap-2">
             <span className="select-all">{taskId}</span>
-            <button 
+            <button
               onClick={() => taskId && navigator.clipboard.writeText(taskId)}
               className="text-bp-dim hover:text-bp-cyan"
               title={t('app.copyTaskTooltip')}
@@ -103,7 +106,7 @@ export default function BuildComplete() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-center gap-4">
+      <div className="flex flex-col md:flex-row justify-center gap-4 mb-12">
         <button
           onClick={handleDownload}
           className="btn-blueprint-primary group"
@@ -122,6 +125,22 @@ export default function BuildComplete() {
         >
           {t('complete.newBuild')}
         </button>
+      </div>
+
+      {/* Star Request Section */}
+      <div className="border-t border-bp-grid/30 pt-8">
+        <p className="text-bp-dim font-mono text-xs mb-4 uppercase tracking-wider">{t('complete.starRequest')}</p>
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-6 py-3 border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500 text-amber-500 transition-all duration-300 group"
+        >
+          <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+          <span className="font-mono text-sm font-bold">{t('complete.starButton')}</span>
+        </a>
       </div>
     </div>
   )

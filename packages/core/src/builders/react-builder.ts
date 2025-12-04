@@ -10,6 +10,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
+ * Sanitize a string to be safe for use as a directory name.
+ * Replaces non-ASCII characters, spaces, and special characters with underscores.
+ * This prevents issues with Java/Gradle on systems with POSIX locale.
+ */
+function sanitizeDirName(name: string): string {
+  return name
+    .replace(/[^\w.-]/g, '_')  // Replace non-word chars (except . and -) with underscore
+    .replace(/_+/g, '_')        // Collapse multiple underscores
+    .replace(/^_|_$/g, '')      // Trim leading/trailing underscores
+    || 'project';               // Fallback if result is empty
+}
+
+/**
  * Get the path to the default icon asset
  */
 function getDefaultIconPath(): string {
@@ -235,8 +248,9 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     }
     setupAndroidEnv(sdkInfo.androidHome);
 
-    // Create work directory
-    const workDir = path.join(outputDir, `${appName}-build`);
+    // Create work directory with ASCII-safe name to avoid Java/Gradle path encoding issues
+    const safeAppName = sanitizeDirName(appName);
+    const workDir = path.join(outputDir, `${safeAppName}-build`);
     await fs.remove(workDir);
     await fs.ensureDir(workDir);
 

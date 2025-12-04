@@ -1,8 +1,20 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import { execaCommand } from 'execa';
+import { createRequire } from 'module';
+import { execa } from 'execa';
 import * as babel from '@babel/core';
+
+// Use createRequire to resolve paths from this package's location,
+// not the caller's location (e.g., backend package)
+const require = createRequire(import.meta.url);
+
+// Resolve tailwindcss CLI path from this package
+function getTailwindCliPath(): string {
+  // tailwindcss package exports its CLI at lib/cli.js
+  const tailwindPkg = require.resolve('tailwindcss/package.json');
+  return path.join(path.dirname(tailwindPkg), 'lib', 'cli.js');
+}
 
 export interface OfflineifyOptions {
   inputPath: string;
@@ -88,8 +100,10 @@ export async function offlineifyHtml(options: OfflineifyOptions): Promise<Offlin
   if (babelScriptMatch) {
     const jsxCode = babelScriptMatch[1];
 
+    // Resolve preset path from this package to avoid resolution issues in monorepo
+    const presetPath = require.resolve('@babel/preset-react');
     const result = await babel.transformAsync(jsxCode, {
-      presets: [['@babel/preset-react', { runtime: 'classic', development: false }]],
+      presets: [[presetPath, { runtime: 'classic', development: false }]],
       filename: 'inline.jsx',
     });
 
@@ -198,10 +212,17 @@ async function generateTailwindCss(
 
   const contentArgs = contentPaths.flatMap((p) => ['--content', p]);
 
-  await execaCommand(
-    `npx tailwindcss -i ${inputCss} -o ${path.join(vendorDir, 'tailwind.min.css')} ${contentArgs.join(' ')} --minify`,
-    { shell: true }
-  );
+  // Use local tailwindcss CLI to avoid npx resolution issues in monorepo/containers
+  const tailwindCli = getTailwindCliPath();
+  const outputCss = path.join(vendorDir, 'tailwind.min.css');
+
+  await execa('node', [
+    tailwindCli,
+    '-i', inputCss,
+    '-o', outputCss,
+    ...contentArgs,
+    '--minify',
+  ]);
 
   // Cleanup
   await fs.remove(tmpDir);

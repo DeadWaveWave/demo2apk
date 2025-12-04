@@ -16,12 +16,23 @@ export default function UploadZone() {
   const { startBuild } = useBuildStore()
   const { t } = useTranslation()
 
+  // Max icon size: 2MB
+  const MAX_ICON_SIZE = 2 * 1024 * 1024
+
   // Handle icon file selection
   const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
+        return
+      }
+      // Validate file size
+      if (file.size > MAX_ICON_SIZE) {
+        alert(t('upload.iconTooLarge', 'Icon file is too large. Maximum size is 2MB.'))
+        if (iconInputRef.current) {
+          iconInputRef.current.value = ''
+        }
         return
       }
       setIconFile(file)
@@ -89,7 +100,7 @@ export default function UploadZone() {
       ? { 'text/html': ['.html', '.htm'] }
       : { 'application/zip': ['.zip'] },
     maxFiles: 1,
-    maxSize: 50 * 1024 * 1024, // 50MB
+    maxSize: 30 * 1024 * 1024, // 30MB
     noClick: buildType === 'html-paste',
     noDrag: buildType === 'html-paste',
   })
@@ -377,6 +388,29 @@ export default function UploadZone() {
           {/* Spec Label */}
           <div className="absolute bottom-4 right-4 font-mono text-[10px] text-bp-dim bg-bp-dark px-2 border border-bp-grid">
             {t('upload.maxSizeLabel', { format: buildType.toUpperCase() })}
+          </div>
+        </div>
+      )}
+
+      {/* Large File Tip - Only show in ZIP mode */}
+      {buildType === 'zip' && (
+        <div className="border border-bp-cyan/30 bg-bp-cyan/5 p-3 md:p-4 relative">
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-bp-cyan/50" />
+          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-bp-cyan/50" />
+          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-bp-cyan/50" />
+          <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-cyan/50" />
+
+          <div className="flex items-start gap-2 md:gap-3">
+            <div className="text-bp-cyan text-base md:text-lg flex-shrink-0">💡</div>
+            <div className="text-xs font-mono text-bp-dim space-y-1">
+              <p className="text-bp-text">
+                {t('upload.largeFileWarning')}
+              </p>
+              <p className="text-bp-cyan/70">
+                {t('upload.largeFileHint')}
+              </p>
+            </div>
           </div>
         </div>
       )}

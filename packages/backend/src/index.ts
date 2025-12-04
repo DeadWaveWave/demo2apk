@@ -38,7 +38,7 @@ const defaultConfig: ServerConfig = {
   host: process.env.HOST || '0.0.0.0',
   buildsDir: process.env.BUILDS_DIR || path.join(process.cwd(), 'builds'),
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
-  maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '52428800', 10), // 50MB
+  maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '31457280', 10), // 30MB
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '5', 10),
   rateLimitWindow: process.env.RATE_LIMIT_WINDOW || '1 hour',
   rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== 'false', // Enabled by default, set to 'false' to disable
@@ -83,7 +83,7 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
     const durationMs = Date.now() - request.startTime;
     // 跳过健康检查和静态文件
     if (request.url === '/health' || request.url.startsWith('/downloads/')) return;
-    
+
     request.logger.requestEnd(request.method, request.url, reply.statusCode, durationMs);
   });
 
@@ -111,8 +111,8 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
       redis,
       keyGenerator: (request) => {
         // Use X-Forwarded-For header if behind a proxy, otherwise use IP
-        return request.headers['x-forwarded-for']?.toString().split(',')[0] || 
-               request.ip;
+        return request.headers['x-forwarded-for']?.toString().split(',')[0] ||
+          request.ip;
       },
       errorResponseBuilder: (_request, context) => ({
         statusCode: 429,
@@ -156,12 +156,12 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
   }));
 
   // Register routes
-  await fastify.register(buildRoutes, { 
+  await fastify.register(buildRoutes, {
     prefix: '/api/build',
     config: finalConfig,
   });
-  
-  await fastify.register(statusRoutes, { 
+
+  await fastify.register(statusRoutes, {
     prefix: '/api/build',
     config: finalConfig,
   });
@@ -173,17 +173,17 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
 }
 
 // Start server if running directly
-const isMain = process.argv[1]?.endsWith('index.js') || 
-               process.argv[1]?.endsWith('index.ts');
+const isMain = process.argv[1]?.endsWith('index.js') ||
+  process.argv[1]?.endsWith('index.ts');
 
 if (isMain) {
   const startupLogger = createLogger({ component: 'api' });
   const server = await createServer();
 
   try {
-    await server.listen({ 
-      port: defaultConfig.port, 
-      host: defaultConfig.host 
+    await server.listen({
+      port: defaultConfig.port,
+      host: defaultConfig.host
     });
     startupLogger.info('Demo2APK API started', {
       host: defaultConfig.host,

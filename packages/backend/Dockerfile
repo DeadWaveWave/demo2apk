@@ -31,17 +31,33 @@ FROM node:20-slim AS production
 WORKDIR /app
 
 # Install system dependencies for Android builds
+# Note: We need JDK 21 for Capacitor Android builds (capacitor-android requires Java 21)
+# Using Eclipse Temurin since Debian Bookworm only has JDK 17 in official repos
 RUN apt-get update && apt-get install -y \
-    openjdk-17-jdk-headless \
     curl \
     unzip \
     git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Java environment - create symlink for consistent path
-RUN ln -sf /usr/lib/jvm/java-17-openjdk-* /usr/lib/jvm/java-17-openjdk || true
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk
-ENV PATH=$PATH:$JAVA_HOME/bin
+# Install Eclipse Temurin JDK 21
+RUN mkdir -p /usr/lib/jvm && \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_x64_linux_hotspot_21.0.5_11.tar.gz"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.5_11.tar.gz"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    wget -q -O /tmp/jdk.tar.gz "$JDK_URL" && \
+    tar -xzf /tmp/jdk.tar.gz -C /usr/lib/jvm && \
+    rm /tmp/jdk.tar.gz && \
+    mv /usr/lib/jvm/jdk-21* /usr/lib/jvm/temurin-21
+
+# Set Java environment
+ENV JAVA_HOME=/usr/lib/jvm/temurin-21
+ENV PATH=$JAVA_HOME/bin:$PATH
 
 # Verify Java installation
 RUN java -version

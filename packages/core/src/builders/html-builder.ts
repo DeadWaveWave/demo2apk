@@ -75,7 +75,7 @@ async function injectIcon(
 ): Promise<void> {
   // Determine which icon to use
   let iconPath: string;
-  
+
   if (customIconPath && await fs.pathExists(customIconPath)) {
     iconPath = customIconPath;
     onProgress?.('Injecting custom app icon...');
@@ -109,16 +109,16 @@ async function injectIcon(
   const configXmlPath = path.join(workDir, 'config.xml');
   if (await fs.pathExists(configXmlPath)) {
     let configContent = await fs.readFile(configXmlPath, 'utf8');
-    
+
     // Check if icon is already configured
     if (!configContent.includes('<icon')) {
       // Build icon configuration for Android
       const iconConfigs = Object.entries(ANDROID_ICON_SIZES)
-        .map(([density, size]) => 
+        .map(([density, size]) =>
           `    <icon density="${density}" src="res/icon/android/icon-${density}.png" width="${size}" height="${size}" />`
         )
         .join('\n');
-      
+
       const iconXml = `
     <!-- App Icon -->
     <icon src="res/icon.png" />
@@ -131,6 +131,19 @@ ${iconConfigs}
       await fs.writeFile(configXmlPath, configContent);
     }
   }
+}
+
+/**
+ * Sanitize a string to be safe for use as a directory name.
+ * Replaces non-ASCII characters, spaces, and special characters with underscores.
+ * This prevents issues with Java/Gradle on systems with POSIX locale.
+ */
+function sanitizeDirName(name: string): string {
+  return name
+    .replace(/[^\w.-]/g, '_')  // Replace non-word chars (except . and -) with underscore
+    .replace(/_+/g, '_')        // Collapse multiple underscores
+    .replace(/^_|_$/g, '')      // Trim leading/trailing underscores
+    || 'project';               // Fallback if result is empty
 }
 
 /**
@@ -195,6 +208,8 @@ export function prepareHtmlForCordova(htmlContent: string): string {
 
 /**
  * Download and setup Gradle wrapper
+ * Note: Gradle is cached in ~/.gradle/wrapper/dists (standard Gradle cache location)
+ * This ensures Docker volume mounting gradle-cache:/root/.gradle works correctly
  */
 async function ensureGradleWrapper(
   androidDir: string,
@@ -217,7 +232,8 @@ async function ensureGradleWrapper(
     });
   } catch {
     // Download Gradle if not available
-    const gradleDir = path.join(os.homedir(), '.gradle-cache', `gradle-${GRADLE_VERSION}`);
+    // Use ~/.gradle/gradle-dist to match Docker volume mount (gradle-cache:/root/.gradle)
+    const gradleDir = path.join(os.homedir(), '.gradle', 'gradle-dist', `gradle-${GRADLE_VERSION}`);
     const gradleBin = path.join(gradleDir, 'bin', 'gradle');
 
     if (!(await fs.pathExists(gradleBin))) {
@@ -289,8 +305,9 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       tempOfflineDir = result.outputDir;
     }
 
-    // Create work directory
-    const workDir = path.join(outputDir, appName);
+    // Create work directory with ASCII-safe name to avoid Java/Gradle path encoding issues
+    const safeAppName = sanitizeDirName(appName);
+    const workDir = path.join(outputDir, safeAppName);
     await fs.remove(workDir);
     await fs.ensureDir(workDir);
 
@@ -363,9 +380,16 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
 
     onProgress?.('Building APK (this may take a few minutes)...', 70);
 
-    // Build APK
+    // Build APK with memory-optimized settings
+    // Limit Gradle JVM heap to 1GB to prevent OOM in containers with 2GB limit
+    // Using --no-daemon is already set, but we also limit memory for the forked process
     await execa('./gradlew', ['assembleDebug', '--no-daemon'], {
       cwd: androidDir,
+      env: {
+        ...process.env,
+        // Limit Gradle daemon/forked process memory to prevent OOM
+        GRADLE_OPTS: '-Xmx1024m -Dorg.gradle.jvmargs="-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"',
+      },
     });
 
     onProgress?.('Exporting APK...', 95);

@@ -77,7 +77,7 @@ async function injectIconCapacitor(
 ): Promise<void> {
   // Determine which icon to use
   let iconPath: string;
-  
+
   if (customIconPath && await fs.pathExists(customIconPath)) {
     iconPath = customIconPath;
     onProgress?.('Injecting custom app icon...');
@@ -102,7 +102,7 @@ async function injectIconCapacitor(
   // Resize and copy icon to each mipmap directory
   for (const [mipmapDir, size] of Object.entries(ANDROID_MIPMAP_SIZES)) {
     const targetDir = path.join(resDir, mipmapDir);
-    
+
     if (await fs.pathExists(targetDir)) {
       // Resize as both ic_launcher.png and ic_launcher_round.png
       await resizeIcon(iconPath, path.join(targetDir, 'ic_launcher.png'), size);
@@ -325,16 +325,16 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     // Install dependencies (use --legacy-peer-deps for npm to handle version conflicts)
     // Force NODE_ENV=development to ensure devDependencies (like vite) are installed
     // even when the worker container runs with NODE_ENV=production
-    const installArgs = packageManager === 'npm' 
-      ? ['install', '--legacy-peer-deps'] 
+    const installArgs = packageManager === 'npm'
+      ? ['install', '--legacy-peer-deps']
       : ['install'];
-    
+
     const buildEnv = {
       ...process.env,
       NODE_ENV: 'development',
       npm_config_production: 'false',
     };
-    
+
     await execa(packageManager, installArgs, {
       cwd: projectDir,
       env: buildEnv,
@@ -360,7 +360,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     const capacitorInstallArgs = packageManager === 'npm'
       ? ['install', '--legacy-peer-deps', '@capacitor/core', '@capacitor/cli', '@capacitor/android']
       : ['install', '@capacitor/core', '@capacitor/cli', '@capacitor/android'];
-    
+
     await execa(packageManager, capacitorInstallArgs, {
       cwd: projectDir,
     });
@@ -438,11 +438,17 @@ export default config;
 
     onProgress?.('Building APK (this may take a few minutes)...', 80);
 
-    // Build APK
+    // Build APK with memory-optimized settings
     await fs.chmod(path.join(androidDir, 'gradlew'), 0o755);
 
+    // Limit Gradle JVM heap to 1GB to prevent OOM in containers with 2GB limit
     await execa('./gradlew', ['assembleDebug', '--no-daemon'], {
       cwd: androidDir,
+      env: {
+        ...process.env,
+        // Limit Gradle daemon/forked process memory to prevent OOM
+        GRADLE_OPTS: '-Xmx1024m -Dorg.gradle.jvmargs="-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"',
+      },
     });
 
     onProgress?.('Exporting APK...', 95);

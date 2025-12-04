@@ -29,6 +29,8 @@ Hope this helps! If you find it useful, please ⭐ star this repo!
 ## ✨ Core Features
 
 *   **🎨 Web Interface**: Immersive "Dark Engineering Blueprint" style UI for managing builds.
+*   **✏️ Customization**: Support setting custom **App Name** and **App Icon** during upload.
+*   **🔗 Easy Sharing**: Generate shareable download links instantly after build completion.
 *   **⚡️ Blazing Fast**: Optimized cloud pipeline delivering APKs in minutes.
 *   **🌐 Full Stack Support**: Perfect support for single HTML files, React, Vite, Next.js, and other modern frontend stacks.
 *   **🧠 Smart Offline**: Automatically handles CDN resources and JSX compilation to ensure your App runs smoothly offline.

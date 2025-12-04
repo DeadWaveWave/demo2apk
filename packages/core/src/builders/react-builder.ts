@@ -309,19 +309,29 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     onProgress?.('Installing dependencies...', 25);
 
     // Install dependencies (use --legacy-peer-deps for npm to handle version conflicts)
+    // Force NODE_ENV=development to ensure devDependencies (like vite) are installed
+    // even when the worker container runs with NODE_ENV=production
     const installArgs = packageManager === 'npm' 
       ? ['install', '--legacy-peer-deps'] 
       : ['install'];
     
+    const buildEnv = {
+      ...process.env,
+      NODE_ENV: 'development',
+      npm_config_production: 'false',
+    };
+    
     await execa(packageManager, installArgs, {
       cwd: projectDir,
+      env: buildEnv,
     });
 
     onProgress?.('Building React project...', 40);
 
-    // Build project
+    // Build project (vite build will set NODE_ENV=production internally for optimization)
     await execa(packageManager, ['run', 'build'], {
       cwd: projectDir,
+      env: buildEnv,
     });
 
     // Verify build output

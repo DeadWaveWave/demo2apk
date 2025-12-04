@@ -2,15 +2,18 @@
 
 本文档详细介绍如何部署 Demo2APK 服务到生产环境。
 
-> ⚠️ **注意**: 对于 ARM64 架构 (Apple Silicon Mac) 的 Docker 部署，请务必参考 [ARM64 构建问题说明](docs/ARM64_BUILD_ISSUES.md)。
+> ⚠️ **注意**: Docker 镜像仅支持 **linux/amd64** 架构。Mac 用户（包括 Apple Silicon）请使用 [本地开发模式](#本地开发模式macos) 启动。
 
 ## 目录
 
 1. [前置要求](#前置要求)
-2. [Docker 部署](#docker-部署)
-3. [直接部署](#直接部署)
-4. [Nginx 配置](#nginx-配置)
-5. [监控和维护](#监控和维护)
+2. [快速部署（推荐）](#快速部署推荐)
+3. [Docker 部署](#docker-部署)
+4. [本地开发模式（macOS）](#本地开发模式macos)
+5. [直接部署](#直接部署)
+6. [Nginx 配置](#nginx-配置)
+7. [监控和维护](#监控和维护)
+8. [构建 Docker 镜像](#构建-docker-镜像)
 
 ## 前置要求
 
@@ -27,7 +30,62 @@
 - Docker 20+ 和 Docker Compose
 - 或者: Node.js 20+, Java 17+, Android SDK
 
+## 快速部署（推荐）
+
+使用预构建的 Docker Hub 镜像，无需本地构建，**3 分钟完成部署**。
+
+> ⚠️ 仅支持 Linux x86_64 服务器，不支持 macOS 和 ARM 架构。
+
+### 1. 安装 Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# 重新登录使权限生效
+```
+
+### 2. 创建部署目录
+
+```bash
+mkdir -p ~/demo2apk && cd ~/demo2apk
+```
+
+### 3. 下载部署配置
+
+```bash
+curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/docker-compose.deploy.yml
+```
+
+### 4. 启动服务
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+### 5. 验证部署
+
+```bash
+# 检查服务状态
+docker compose -f docker-compose.deploy.yml ps
+
+# 测试 API
+curl http://localhost:3000/health
+```
+
+访问 **http://127.0.0.1:5173** 即可使用。
+
+### 更新到最新版本
+
+```bash
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+---
+
 ## Docker 部署
+
+如果需要自定义构建或修改代码，可以使用源码构建方式。
 
 ### 1. 准备服务器
 
@@ -93,6 +151,43 @@ curl http://localhost:3000/health
 # 检查 API
 curl http://localhost:3000/api
 ```
+
+## 本地开发模式（macOS）
+
+由于 Docker 镜像不支持 macOS（ARM64/x86），Mac 用户请使用本地开发模式：
+
+### 前置要求
+
+- Node.js 20+
+- pnpm 9+
+- Java 17+ (可通过 `brew install openjdk@17` 安装)
+- Android SDK
+
+### 启动步骤
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/DeadWaveWave/demo2apk.git
+cd demo2apk
+
+# 2. 安装依赖
+pnpm install
+
+# 3. 启动 Redis (使用 Docker)
+docker run -d -p 6379:6379 redis:alpine
+
+# 4. 构建项目
+pnpm build
+
+# 5. 启动服务 (在不同终端中运行)
+pnpm dev        # API Server (端口 3000)
+pnpm worker     # Build Worker
+pnpm frontend   # Web UI (端口 5173)
+```
+
+访问 **http://localhost:5173** 即可使用。
+
+---
 
 ## 直接部署
 
@@ -388,6 +483,52 @@ sudo systemctl restart demo2apk-api demo2apk-worker
 1. 检查 Redis 状态: `systemctl status redis`
 2. 测试连接: `redis-cli ping`
 3. 检查配置: `cat /etc/redis/redis.conf | grep bind`
+
+---
+
+## 构建 Docker 镜像
+
+如果需要自行构建镜像（例如修改代码后），可以使用以下命令：
+
+### 构建 linux/amd64 镜像
+
+```bash
+# 构建 Backend 镜像
+docker buildx build --platform linux/amd64 \
+  -t your-username/demo2apk-backend:latest \
+  -f packages/backend/Dockerfile \
+  --push .
+
+# 构建 Frontend 镜像
+docker buildx build --platform linux/amd64 \
+  -t your-username/demo2apk-frontend:latest \
+  -f packages/frontend/Dockerfile \
+  --push .
+```
+
+### 本地构建（当前架构）
+
+```bash
+# 构建所有镜像
+docker compose build
+
+# 启动服务
+docker compose up -d
+```
+
+### 官方镜像
+
+官方预构建镜像托管在 Docker Hub：
+
+- `deadwavewave/demo2apk-backend:latest`
+- `deadwavewave/demo2apk-frontend:latest`
+
+拉取镜像：
+
+```bash
+docker pull deadwavewave/demo2apk-backend:latest
+docker pull deadwavewave/demo2apk-frontend:latest
+```
 
 ---
 

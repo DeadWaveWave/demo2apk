@@ -46,32 +46,51 @@ export default defineConfig({
 
 ## 🚀 快速开始
 
-### 方式一：使用 Web 界面 (推荐)
+### 方式一：Docker 部署（Linux 服务器）
 
-我们提供了一个极具科幻感的 Web 界面来管理构建任务。
+使用预构建的 Docker 镜像，3 分钟部署到你的 Linux 服务器。
 
-1.  **启动完整服务** (Docker Compose):
+> ⚠️ Docker 镜像仅支持 **linux/amd64** 架构。macOS 用户请使用 [本地开发模式](#方式二本地开发macos--linux)。
 
 ```bash
-    docker-compose up -d
+# 1. 创建部署目录
+mkdir -p ~/demo2apk && cd ~/demo2apk
+
+# 2. 下载部署配置
+curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/docker-compose.deploy.yml
+
+# 3. 启动服务
+docker compose -f docker-compose.deploy.yml up -d
 ```
 
-    访问 **http://localhost:5173** 即可使用 Web 界面。
+访问 **http://127.0.0.1:5173** 即可使用 Web 界面。
 
-2.  **本地开发启动**:
+**更新到最新版本：**
+```bash
+docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
+```
+
+### 方式二：本地开发（macOS / Linux）
+
+macOS 用户或需要本地开发时使用：
 
 ```bash
-    # 1. 安装依赖
-    pnpm install
+# 1. 安装依赖
+pnpm install
 
-    # 2. 启动 Redis
-    docker run -d -p 6379:6379 redis:alpine
+# 2. 启动 Redis
+docker run -d -p 6379:6379 redis:alpine
 
-    # 3. 启动所有服务 (前端 + 后端 + Worker)
-    pnpm dev        # 启动 API Server (端口 3000)
-    pnpm worker     # 启动构建 Worker
-    pnpm frontend   # 启动 Web 界面 (端口 5173)
-    ```
+# 3. 构建项目
+pnpm build
+
+# 4. 启动所有服务 (在不同终端中运行)
+pnpm dev        # 启动 API Server (端口 3000)
+pnpm worker     # 启动构建 Worker
+pnpm frontend   # 启动 Web 界面 (端口 5173)
+```
+
+访问 **http://localhost:5173** 即可使用 Web 界面。
 
 ### 方式二：使用 API
 

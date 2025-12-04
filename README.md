@@ -48,32 +48,51 @@ export default defineConfig({
 
 ## 🚀 Quick Start
 
-### Option 1: Web Interface (Recommended)
+### Option 1: Docker Deployment (Linux Server)
 
-We provide a sci-fi inspired web interface to manage your build tasks.
+Deploy to your Linux server in 3 minutes using pre-built Docker images.
 
-1.  **Start Full Service** (Docker Compose):
+> ⚠️ Docker images only support **linux/amd64**. For macOS, use [Local Development](#option-2-local-development-macos--linux).
 
-    ```bash
-    docker-compose up -d
-    ```
+```bash
+# 1. Create deployment directory
+mkdir -p ~/demo2apk && cd ~/demo2apk
 
-    Visit **http://localhost:5173** to use the Web UI.
+# 2. Download deployment config
+curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/docker-compose.deploy.yml
 
-2.  **Local Development**:
+# 3. Start services
+docker compose -f docker-compose.deploy.yml up -d
+```
 
-    ```bash
-    # 1. Install dependencies
-    pnpm install
+Visit **http://127.0.0.1:5173** to use the Web UI.
 
-    # 2. Start Redis
-    docker run -d -p 6379:6379 redis:alpine
+**Update to latest version:**
+```bash
+docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
+```
 
-    # 3. Start all services
-    pnpm dev        # API Server (port 3000)
-    pnpm worker     # Build Worker
-    pnpm frontend   # Web UI (port 5173)
-    ```
+### Option 2: Local Development (macOS / Linux)
+
+For macOS users or local development:
+
+```bash
+# 1. Install dependencies
+pnpm install
+
+# 2. Start Redis
+docker run -d -p 6379:6379 redis:alpine
+
+# 3. Build project
+pnpm build
+
+# 4. Start all services (in separate terminals)
+pnpm dev        # API Server (port 3000)
+pnpm worker     # Build Worker
+pnpm frontend   # Web UI (port 5173)
+```
+
+Visit **http://localhost:5173** to use the Web UI.
 
 ### Option 2: API Usage
 

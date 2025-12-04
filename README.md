@@ -14,6 +14,18 @@
 
 Demo2APK is a one-click packaging tool built for Vibe Coding users. Whether you have a brilliant HTML prototype or a complete React project, just upload your files, and we'll generate an installable APK for you immediately. No complex Android development environment setup required—keep your creativity at your fingertips.
 
+## 🌐 Free Public Service
+
+We provide a **free public instance** for everyone:
+
+👉 **[https://demo2apk.lasuo.ai](https://demo2apk.lasuo.ai)**
+
+- 5 builds per IP per hour
+- No registration required
+- Fully functional, same as self-hosted
+
+Hope this helps! If you find it useful, please ⭐ star this repo!
+
 ## ✨ Core Features
 
 *   **🎨 Web Interface**: Immersive "Dark Engineering Blueprint" style UI for managing builds.

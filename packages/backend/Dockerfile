@@ -75,11 +75,26 @@ RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
     mv cmdline-tools latest
 
 # Accept licenses and install SDK components
-RUN yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses && \
-    $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-    "platform-tools" \
-    "platforms;android-35" \
-    "build-tools;35.0.0"
+# Install components one by one with retry logic to handle network issues
+RUN yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+# Install platform-tools with retry
+RUN for i in 1 2 3 4 5; do \
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" && break || \
+        echo "Retry $i failed, waiting 10s..." && sleep 10; \
+    done
+
+# Install platforms with retry
+RUN for i in 1 2 3 4 5; do \
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" && break || \
+        echo "Retry $i failed, waiting 10s..." && sleep 10; \
+    done
+
+# Install build-tools with retry
+RUN for i in 1 2 3 4 5; do \
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.0" && break || \
+        echo "Retry $i failed, waiting 10s..." && sleep 10; \
+    done
 
 # Install Node.js tools
 # Note: cordova-android is installed per-project by cordova platform add

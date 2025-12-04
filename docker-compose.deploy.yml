@@ -1,0 +1,115 @@
+# Demo2APK 生产部署配置
+# 使用预构建的 Docker Hub 镜像
+#
+# 部署步骤:
+#   1. 复制此文件到服务器
+#   2. 创建 .env 文件配置环境变量 (可选)
+#   3. 运行: docker compose -f docker-compose.deploy.yml up -d
+#   4. 查看日志: docker compose -f docker-compose.deploy.yml logs -f
+
+services:
+  # Frontend Web UI
+  frontend:
+    image: deadwavewave/demo2apk-frontend:latest
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # API Server
+  api:
+    image: deadwavewave/demo2apk-backend:latest
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - REDIS_URL=redis://redis:6379
+      - BUILDS_DIR=/app/builds
+      - UPLOADS_DIR=/app/uploads
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-52428800}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-5}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-1 hour}
+      - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
+      - MOCK_BUILD=false
+    volumes:
+      - builds:/app/builds
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  # Background Worker (Android 构建)
+  worker:
+    image: deadwavewave/demo2apk-backend:latest
+    command: ["node", "packages/backend/dist/worker.js"]
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - BUILDS_DIR=/app/builds
+      - UPLOADS_DIR=/app/uploads
+      - MOCK_BUILD=false
+      - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
+    volumes:
+      - builds:/app/builds
+      - uploads:/app/uploads
+      - gradle-cache:/root/.gradle
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          memory: 2G
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  builds:
+    driver: local
+  uploads:
+    driver: local
+  redis-data:
+    driver: local
+  gradle-cache:
+    driver: local
+
+networks:
+  default:
+    name: demo2apk-network

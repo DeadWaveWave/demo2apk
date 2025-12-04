@@ -93,6 +93,35 @@ export async function getJob(
 }
 
 /**
+ * Get queue statistics
+ */
+export async function getQueueStats(redisUrl: string): Promise<{
+  waiting: number;
+  active: number;
+}> {
+  const queue = getBuildQueue(redisUrl);
+  const [waiting, active] = await Promise.all([
+    queue.getWaitingCount(),
+    queue.getActiveCount(),
+  ]);
+  return { waiting, active };
+}
+
+/**
+ * Get job position in queue (1-based, 0 means not in queue/active)
+ */
+export async function getJobPosition(
+  redisUrl: string,
+  taskId: string
+): Promise<number> {
+  const queue = getBuildQueue(redisUrl);
+  const waitingJobs = await queue.getWaiting(0, 100); // Get first 100 waiting jobs
+  
+  const position = waitingJobs.findIndex(job => job.id === taskId);
+  return position === -1 ? 0 : position + 1; // 1-based position
+}
+
+/**
  * Get job status
  */
 export async function getJobStatus(
@@ -105,6 +134,8 @@ export async function getJobStatus(
   error?: string;
   createdAt?: string;
   appName?: string;
+  queuePosition?: number;
+  queueTotal?: number;
 }> {
   const job = await getJob(redisUrl, taskId);
   
@@ -143,12 +174,20 @@ export async function getJobStatus(
       };
     case 'waiting':
     case 'delayed':
-    case 'prioritized':
+    case 'prioritized': {
+      // Get queue position for pending jobs
+      const [position, stats] = await Promise.all([
+        getJobPosition(redisUrl, taskId),
+        getQueueStats(redisUrl),
+      ]);
       return {
         status: 'pending',
         createdAt,
         appName,
+        queuePosition: position,
+        queueTotal: stats.waiting,
       };
+    }
     default:
       return { status: 'not_found' };
   }

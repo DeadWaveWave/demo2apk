@@ -13,6 +13,7 @@ export default {
         'bp-blue': '#00f0ff',      // 核心工程蓝
         'bp-cyan': '#00ff9d',      // 成功/数据流
         'bp-alert': '#ff9900',     // 警示
+        'bp-warning': '#ffcc00',   // 排队等待（黄色）
         'bp-text': '#e0f7ff',      // 主要文字（偏冷白）
         'bp-dim': '#5c7c8a',       // 次要文字
       },

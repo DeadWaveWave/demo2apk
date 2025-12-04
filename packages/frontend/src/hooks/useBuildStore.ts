@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-type BuildStatus = 'idle' | 'uploading' | 'building' | 'completed' | 'error'
+type BuildStatus = 'idle' | 'uploading' | 'queued' | 'building' | 'completed' | 'error'
 
 interface BuildState {
   status: BuildStatus
@@ -12,6 +12,8 @@ interface BuildState {
   error: string | null
   expiresAt: string | null
   retentionHours: number | null
+  queuePosition: number | null
+  queueTotal: number | null
   
   // Actions
   startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => Promise<void>
@@ -28,6 +30,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   error: null,
   expiresAt: null,
   retentionHours: null,
+  queuePosition: null,
+  queueTotal: null,
 
   startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => {
     set({ 
@@ -109,6 +113,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       error: null,
       expiresAt: null,
       retentionHours: null,
+      queuePosition: null,
+      queueTotal: null,
     })
   },
 }))
@@ -168,23 +174,53 @@ async function pollBuildStatus(
           retentionHours: retentionHours ?? get().retentionHours,
         })
         return
+      } else if (data.status === 'pending') {
+        // Queued - waiting in line
+        const queuePosition = data.queuePosition || null
+        const queueTotal = data.queueTotal || null
+        
+        // Add queue info to logs if position changed
+        if (queuePosition && queuePosition !== get().queuePosition) {
+          const queueMsg = queueTotal 
+            ? `> QUEUE POSITION: ${queuePosition}/${queueTotal}`
+            : `> QUEUE POSITION: ${queuePosition}`
+          if (!newLogs.includes(queueMsg)) {
+            // Remove old queue position logs
+            const filteredLogs = newLogs.filter(log => !log.includes('QUEUE POSITION:'))
+            filteredLogs.push(queueMsg)
+            newLogs.length = 0
+            newLogs.push(...filteredLogs)
+          }
+        }
+
+        set({ 
+          status: 'queued',
+          progress: 5, // Fixed progress for queued state
+          logs: newLogs,
+          queuePosition,
+          queueTotal,
+          expiresAt: expiresAt || get().expiresAt,
+          retentionHours: retentionHours ?? get().retentionHours,
+        })
       } else {
-        // Active or Pending
-        // Use actual percentage if available, otherwise maintain current or minimum
+        // Active - building
         let currentProgress = get().progress
         let serverProgress = data.progress?.percent || 0
         
         // Ensure progress never goes backwards
         let nextProgress = Math.max(currentProgress, serverProgress)
         
-        // If pending but no progress reported, fake a slow start
-        if (data.status === 'pending' && nextProgress < 10) {
-            nextProgress = Math.min(nextProgress + 1, 10)
+        // Minimum 10% when actively building
+        if (nextProgress < 10) {
+          nextProgress = 10
         }
 
         set({ 
+          status: 'building',
           progress: nextProgress, 
           logs: newLogs,
+          queuePosition: null,
+          queueTotal: null,
           expiresAt: expiresAt || get().expiresAt,
           retentionHours: retentionHours ?? get().retentionHours,
         })
@@ -207,5 +243,7 @@ async function pollBuildStatus(
     logs: [...get().logs, '[FATAL ERROR] CONNECTION LOST'],
     expiresAt: null,
     retentionHours: null,
+    queuePosition: null,
+    queueTotal: null,
   })
 }

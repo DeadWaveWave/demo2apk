@@ -3,7 +3,7 @@ import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
 
 export default function BuildProgress() {
-  const { progress, logs, taskId, fileName } = useBuildStore()
+  const { status, progress, logs, taskId, fileName, queuePosition, queueTotal } = useBuildStore()
   const logsEndRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
@@ -12,12 +12,49 @@ export default function BuildProgress() {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
+  const isQueued = status === 'queued'
+
+  // Generate status text
+  const getStatusText = () => {
+    if (isQueued) {
+      if (queuePosition && queueTotal) {
+        return t('progress.statusQueued', { position: queuePosition, total: queueTotal })
+      } else if (queuePosition) {
+        return t('progress.statusQueuedPosition', { position: queuePosition })
+      }
+      return t('progress.statusWaiting')
+    }
+    return t('progress.statusProcessing')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-bp-blue/70 font-mono text-xs animate-pulse">{t('progress.statusProcessing')}</div>
+        <div className={`font-mono text-xs animate-pulse ${isQueued ? 'text-bp-warning' : 'text-bp-blue/70'}`}>
+          {getStatusText()}
+        </div>
         <div className="ruler-x w-1/3 opacity-30" />
       </div>
+
+      {/* Queue Status Banner */}
+      {isQueued && (
+        <div className="border border-bp-warning/50 bg-bp-warning/10 p-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="text-bp-warning text-2xl animate-pulse">⏳</div>
+            <div>
+              <div className="text-bp-warning font-mono text-sm font-bold">
+                {t('progress.queueTitle')}
+              </div>
+              <div className="text-bp-dim font-mono text-xs mt-1">
+                {queuePosition && queueTotal 
+                  ? t('progress.queueInfo', { position: queuePosition, total: queueTotal })
+                  : t('progress.queueWaiting')
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Task Information Grid */}
       <div className="grid grid-cols-2 gap-4 mb-6 font-mono text-xs">

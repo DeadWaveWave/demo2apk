@@ -71,6 +71,16 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
       response.progress = jobStatus.progress;
     }
 
+    // Include queue position for pending jobs
+    if (jobStatus.status === 'pending') {
+      if (jobStatus.queuePosition !== undefined) {
+        response.queuePosition = jobStatus.queuePosition;
+      }
+      if (jobStatus.queueTotal !== undefined) {
+        response.queueTotal = jobStatus.queueTotal;
+      }
+    }
+
     if (jobStatus.status === 'completed' && jobStatus.result) {
       response.result = {
         success: jobStatus.result.success,

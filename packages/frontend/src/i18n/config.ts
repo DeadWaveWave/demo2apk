@@ -14,7 +14,7 @@ const resources = {
             },
             footer: {
                 systemStatus: 'SYSTEM STATUS: NOMINAL',
-                buildVersion: 'BUILD_VER: 2.0.0',
+                buildVersion: 'BUILD_VER: 2.1.0',
                 latency: 'LATENCY: 12ms',
                 blueprintId: 'ID: BLUEPRINT-01',
             },
@@ -156,7 +156,7 @@ const resources = {
             },
             footer: {
                 systemStatus: '系统状态：正常',
-                buildVersion: '版本：2.0.0',
+                buildVersion: '版本：2.1.0',
                 latency: '延迟：12ms',
                 blueprintId: '编号：BLUEPRINT-01',
             },

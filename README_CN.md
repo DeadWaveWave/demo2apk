@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Stars](https://img.shields.io/github/stars/DeadWaveWave/demo2apk?style=social)
-![Version](https://img.shields.io/badge/version-2.0.0-green)
+![Version](https://img.shields.io/badge/version-2.1.0-green)
 
 **将你的 Vibe Coding 创意瞬间转化为可运行的 Android App。**
 
@@ -28,8 +28,10 @@ Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是�
 
 ## ✨ 核心特性
 
-*   **🎨 Web 界面支持**：沉浸式体验构建过程。
+*   **🎨 Web 界面支持**：沉浸式体验构建过程，支持**暗黑工程蓝图风格**。
 *   **✏️ 个性化定制**：支持设置**自定义应用名称**和上传**应用图标**。
+*   **📋 构建历史记录**：自动保存最近构建记录，支持刷新页面后**自动恢复**构建状态。
+*   **⏳ 智能排队系统**：支持多任务并发控制与排队等待，实时显示队列位置。
 *   **🔗 便捷分享**：构建完成后自动生成可分享的下载链接。
 *   **⚡️ 极速构建**：优化后的云端流水线，分分钟交付 APK。
 *   **🌐 全栈支持**：完美支持单页 HTML、React、Vite、Next.js 等主流前端技术栈。
@@ -166,6 +168,19 @@ RATE_LIMIT_MAX=10
 # 文件保留时间 (小时)
 FILE_RETENTION_HOURS=2
 ```
+
+### 并发与排队 (Concurrency)
+
+控制同时进行的构建任务数量，多余的任务将自动进入队列等待。
+
+```bash
+# 并发构建数量 (默认 2)
+WORKER_CONCURRENCY=2
+```
+
+## 📝 更新日志
+
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新历史。
 
 ## 📚 文档与资源
 

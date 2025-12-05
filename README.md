@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Stars](https://img.shields.io/github/stars/DeadWaveWave/demo2apk?style=social)
-![Version](https://img.shields.io/badge/version-2.0.0-green)
+![Version](https://img.shields.io/badge/version-2.1.0-green)
 
 [中文文档](README_CN.md)
 
@@ -30,6 +30,8 @@ Hope this helps! If you find it useful, please ⭐ star this repo!
 
 *   **🎨 Web Interface**: Immersive "Dark Engineering Blueprint" style UI for managing builds.
 *   **✏️ Customization**: Support setting custom **App Name** and **App Icon** during upload.
+*   **📋 Build History**: Automatically saves recent builds and supports **session restoration** after page refresh.
+*   **⏳ Smart Queuing**: Handles concurrent builds with a real-time queue system and progress feedback.
 *   **🔗 Easy Sharing**: Generate shareable download links instantly after build completion.
 *   **⚡️ Blazing Fast**: Optimized cloud pipeline delivering APKs in minutes.
 *   **🌐 Full Stack Support**: Perfect support for single HTML files, React, Vite, Next.js, and other modern frontend stacks.
@@ -166,6 +168,19 @@ Configure via environment variable:
 # Retention period (hours)
 FILE_RETENTION_HOURS=2
 ```
+
+### Concurrency & Queuing
+
+Control how many builds run simultaneously. Excess builds will be queued automatically.
+
+```bash
+# Number of concurrent builds (default 2)
+WORKER_CONCURRENCY=2
+```
+
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## 📚 Documentation
 

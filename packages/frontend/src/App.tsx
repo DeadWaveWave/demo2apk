@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import Header from './components/Header'
 import UploadZone from './components/UploadZone'
 import BuildProgress from './components/BuildProgress'
 import BuildComplete from './components/BuildComplete'
+import BuildHistory from './components/BuildHistory'
 import { useBuildStore, getTaskIdFromUrl } from './hooks/useBuildStore'
 
 function App() {
@@ -18,6 +19,11 @@ function App() {
       restoreFromTaskId(urlTaskId)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle restore from history
+  const handleRestoreFromHistory = useCallback((historyTaskId: string) => {
+    restoreFromTaskId(historyTaskId)
+  }, [restoreFromTaskId])
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
@@ -47,7 +53,12 @@ function App() {
           <div className="absolute bottom-4 left-4 w-4 h-4 border-b border-l border-bp-blue/50" />
           <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-bp-blue/50" />
 
-          {status === 'idle' && <UploadZone />}
+          {status === 'idle' && (
+            <>
+              <UploadZone />
+              <BuildHistory onRestore={handleRestoreFromHistory} />
+            </>
+          )}
           {(status === 'uploading' || status === 'queued' || status === 'building') && <BuildProgress />}
           {status === 'completed' && <BuildComplete />}
           

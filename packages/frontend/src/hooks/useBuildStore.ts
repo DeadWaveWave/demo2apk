@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { saveBuildToHistory, updateBuildStatus } from '../utils/buildHistory'
 
 type BuildStatus = 'idle' | 'uploading' | 'queued' | 'building' | 'completed' | 'error'
 
@@ -101,6 +102,15 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       // Save taskId to URL for persistence
       updateUrlWithTaskId(taskId)
 
+      // Save to build history
+      saveBuildToHistory({
+        taskId,
+        fileName: file.name,
+        appName: appName || file.name.replace(/\.(html|zip)$/i, ''),
+        status: 'building',
+        createdAt: new Date().toISOString(),
+      })
+
       set({ 
         taskId,
         status: 'building',
@@ -196,6 +206,14 @@ async function pollBuildStatus(
       const expiresAt = data.expiresAt || null
       const retentionHours = typeof data.retentionHours === 'number' ? data.retentionHours : null
       
+      // Get fileName from API response (backend returns appName as fileName)
+      const serverFileName = data.fileName || get().fileName
+      
+      // Update fileName if we got it from server (important for restored sessions)
+      if (data.fileName && !get().fileName) {
+        set({ fileName: data.fileName })
+      }
+      
       // Update Logs
       if (data.progress?.message) {
         const logMsg = `> ${data.progress.message.toUpperCase()}`
@@ -208,11 +226,16 @@ async function pollBuildStatus(
       if (data.status === 'completed') {
         newLogs.push('> BUILD SEQUENCE COMPLETE.')
         newLogs.push('> PACKAGE READY FOR EXTRACTION.')
+        
+        // Update history with completed status
+        updateBuildStatus(taskId, 'completed', expiresAt || undefined)
+        
         set({
           status: 'completed',
           progress: 100,
           logs: newLogs,
           downloadUrl: `/api/build/${taskId}/download`,
+          fileName: serverFileName,
           expiresAt: expiresAt || get().expiresAt,
           retentionHours: retentionHours ?? get().retentionHours,
         })
@@ -220,6 +243,10 @@ async function pollBuildStatus(
       } else if (data.status === 'failed') {
         const errorMsg = `[SYSTEM FAILURE] ${data.error || 'UNKNOWN ERROR'}`
         newLogs.push(errorMsg)
+        
+        // Update history with failed status
+        updateBuildStatus(taskId, 'failed')
+        
         set({
           status: 'error',
           error: data.error || 'BUILD FAILED',

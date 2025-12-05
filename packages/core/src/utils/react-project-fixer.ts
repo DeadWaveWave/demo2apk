@@ -7,6 +7,28 @@ export interface FixResult {
 }
 
 /**
+ * Known implicit/peer dependencies that libraries often require but don't declare properly.
+ * Key: package name that triggers the need
+ * Value: array of packages that should be installed alongside
+ */
+const IMPLICIT_DEPENDENCIES: Record<string, string[]> = {
+  // recharts uses react-is internally but doesn't declare it as a dependency
+  'recharts': ['react-is'],
+  // framer-motion may need these on some setups
+  'framer-motion': ['@emotion/is-prop-valid'],
+  // react-spring ecosystem
+  '@react-spring/web': ['@react-spring/shared', '@react-spring/animated'],
+  // styled-components peer deps
+  'styled-components': ['react-is'],
+  // material-ui v5 peer deps
+  '@mui/material': ['@emotion/react', '@emotion/styled'],
+  // ant design
+  'antd': ['@ant-design/icons'],
+  // react-router needs react-router-dom for web
+  'react-router': ['react-router-dom'],
+};
+
+/**
  * Fix Vite project configuration for APK compatibility
  * 
  * Common issues with AI-generated projects (Google AI Studio, etc.):
@@ -76,6 +98,9 @@ export async function fixViteProject(projectDir: string): Promise<FixResult> {
   if (await hasTailwindClasses(projectDir)) {
     await setupTailwind(projectDir, changes);
   }
+
+  // 6. Add missing implicit/peer dependencies
+  await addMissingImplicitDependencies(projectDir, changes);
 
   return {
     fixed: changes.length > 0,
@@ -346,6 +371,188 @@ async function hasTailwindClasses(projectDir: string): Promise<boolean> {
   }
   
   return scanDir(projectDir);
+}
+
+/**
+ * Add missing implicit/peer dependencies based on installed packages.
+ * 
+ * Many popular React libraries have implicit dependencies that they use
+ * but don't declare in their package.json (or only as peer deps).
+ * This causes Vite/Rollup to fail with "cannot resolve" errors.
+ * 
+ * Example: recharts uses react-is internally but doesn't declare it.
+ */
+async function addMissingImplicitDependencies(projectDir: string, changes: string[]): Promise<void> {
+  const pkgPath = path.join(projectDir, 'package.json');
+  if (!(await fs.pathExists(pkgPath))) {
+    return;
+  }
+  
+  const pkg = await fs.readJson(pkgPath);
+  const allDeps = {
+    ...(pkg.dependencies || {}),
+    ...(pkg.devDependencies || {}),
+  };
+  
+  const missingDeps: Record<string, string> = {};
+  
+  // Check each known library and its implicit dependencies
+  for (const [trigger, implicitDeps] of Object.entries(IMPLICIT_DEPENDENCIES)) {
+    if (trigger in allDeps) {
+      for (const implicitDep of implicitDeps) {
+        // Only add if not already present
+        if (!(implicitDep in allDeps) && !(implicitDep in missingDeps)) {
+          // Use 'latest' or a known compatible version
+          missingDeps[implicitDep] = getRecommendedVersion(implicitDep);
+        }
+      }
+    }
+  }
+  
+  // Also scan source files for direct imports of packages that might be missing
+  const sourceImports = await scanSourceImports(projectDir);
+  for (const importedPkg of sourceImports) {
+    // Skip relative imports, node built-ins, and already installed packages
+    if (importedPkg.startsWith('.') || 
+        importedPkg.startsWith('/') ||
+        isNodeBuiltin(importedPkg) ||
+        importedPkg in allDeps ||
+        importedPkg in missingDeps) {
+      continue;
+    }
+    
+    // Check if this is a known implicit dependency we should add
+    if (importedPkg === 'react-is' || 
+        importedPkg.startsWith('@emotion/') ||
+        importedPkg.startsWith('@react-spring/')) {
+      missingDeps[importedPkg] = getRecommendedVersion(importedPkg);
+    }
+  }
+  
+  // Add missing dependencies to package.json
+  if (Object.keys(missingDeps).length > 0) {
+    const deps = (pkg.dependencies || {}) as Record<string, string>;
+    Object.assign(deps, missingDeps);
+    pkg.dependencies = deps;
+    await fs.writeJson(pkgPath, pkg, { spaces: 2 });
+    
+    const addedList = Object.keys(missingDeps).join(', ');
+    changes.push(`Added missing implicit dependencies: ${addedList}`);
+  }
+}
+
+/**
+ * Get recommended version for a package
+ */
+function getRecommendedVersion(pkg: string): string {
+  const versions: Record<string, string> = {
+    'react-is': '^18.2.0',
+    '@emotion/is-prop-valid': '^1.2.0',
+    '@emotion/react': '^11.11.0',
+    '@emotion/styled': '^11.11.0',
+    '@react-spring/shared': '^9.7.0',
+    '@react-spring/animated': '^9.7.0',
+    '@ant-design/icons': '^5.0.0',
+    'react-router-dom': '^6.0.0',
+  };
+  return versions[pkg] || '*';
+}
+
+/**
+ * Check if a module name is a Node.js builtin
+ */
+function isNodeBuiltin(name: string): boolean {
+  const builtins = [
+    'fs', 'path', 'os', 'crypto', 'http', 'https', 'url', 'util', 
+    'stream', 'events', 'buffer', 'querystring', 'assert', 'child_process',
+    'cluster', 'dgram', 'dns', 'domain', 'net', 'readline', 'repl',
+    'string_decoder', 'tls', 'tty', 'v8', 'vm', 'zlib', 'process',
+  ];
+  return builtins.includes(name) || name.startsWith('node:');
+}
+
+/**
+ * Scan source files for import statements and return package names
+ */
+async function scanSourceImports(projectDir: string): Promise<Set<string>> {
+  const imports = new Set<string>();
+  const sourceExtensions = ['.tsx', '.jsx', '.ts', '.js', '.mjs', '.mts'];
+  
+  async function scanDir(dir: string): Promise<void> {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory()) {
+          // Skip node_modules and hidden directories
+          if (entry.name === 'node_modules' || entry.name.startsWith('.') || entry.name === 'dist' || entry.name === 'build') {
+            continue;
+          }
+          await scanDir(fullPath);
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name);
+          if (sourceExtensions.includes(ext)) {
+            const content = await fs.readFile(fullPath, 'utf8');
+            
+            // Match import statements: import ... from 'package'
+            const importMatches = content.matchAll(/import\s+(?:.*?\s+from\s+)?['"]([^'"]+)['"]/g);
+            for (const match of importMatches) {
+              const importPath = match[1];
+              const pkgName = getPackageName(importPath);
+              if (pkgName) {
+                imports.add(pkgName);
+              }
+            }
+            
+            // Match require statements: require('package')
+            const requireMatches = content.matchAll(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g);
+            for (const match of requireMatches) {
+              const importPath = match[1];
+              const pkgName = getPackageName(importPath);
+              if (pkgName) {
+                imports.add(pkgName);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore errors reading directories
+    }
+  }
+  
+  await scanDir(projectDir);
+  return imports;
+}
+
+/**
+ * Extract package name from an import path
+ * Examples:
+ *   'react' -> 'react'
+ *   'react-dom/client' -> 'react-dom'
+ *   '@mui/material' -> '@mui/material'
+ *   '@mui/material/Button' -> '@mui/material'
+ *   './component' -> null (relative)
+ */
+function getPackageName(importPath: string): string | null {
+  if (importPath.startsWith('.') || importPath.startsWith('/')) {
+    return null;
+  }
+  
+  // Scoped package: @scope/name
+  if (importPath.startsWith('@')) {
+    const parts = importPath.split('/');
+    if (parts.length >= 2) {
+      return `${parts[0]}/${parts[1]}`;
+    }
+    return importPath;
+  }
+  
+  // Regular package: name or name/subpath
+  const parts = importPath.split('/');
+  return parts[0];
 }
 
 /**

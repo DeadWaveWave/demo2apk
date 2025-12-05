@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /download/
+Disallow: /builds/
+
+Sitemap: https://demo2apk.lasuo.ai/sitemap.xml
+

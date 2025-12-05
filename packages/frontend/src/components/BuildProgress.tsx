@@ -60,11 +60,11 @@ export default function BuildProgress() {
       <div className="grid grid-cols-2 gap-4 mb-6 font-mono text-xs">
         <div className="border border-bp-grid p-2 flex justify-between items-center bg-bp-dark/30">
            <span className="text-bp-dim">{t('progress.targetFile')}</span>
-           <span className="text-bp-text">{fileName}</span>
+           <span className="text-bp-text">{fileName || '(RESTORED SESSION)'}</span>
         </div>
         <div className="border border-bp-grid p-2 flex justify-between items-center bg-bp-dark/30">
            <span className="text-bp-dim">{t('progress.taskHash')}</span>
-           <span className="text-bp-blue">{taskId?.slice(0, 8)}</span>
+           <span className="text-bp-blue select-all">{taskId}</span>
         </div>
       </div>
 

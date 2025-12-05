@@ -14,10 +14,29 @@ interface BuildState {
   retentionHours: number | null
   queuePosition: number | null
   queueTotal: number | null
+  isRestoring: boolean
   
   // Actions
   startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => Promise<void>
+  restoreFromTaskId: (taskId: string) => Promise<void>
   reset: () => void
+}
+
+// Helper to update URL with taskId
+function updateUrlWithTaskId(taskId: string | null) {
+  const url = new URL(window.location.href)
+  if (taskId) {
+    url.searchParams.set('task', taskId)
+  } else {
+    url.searchParams.delete('task')
+  }
+  window.history.replaceState({}, '', url.toString())
+}
+
+// Helper to get taskId from URL
+export function getTaskIdFromUrl(): string | null {
+  const url = new URL(window.location.href)
+  return url.searchParams.get('task')
 }
 
 export const useBuildStore = create<BuildState>((set, get) => ({
@@ -32,6 +51,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   retentionHours: null,
   queuePosition: null,
   queueTotal: null,
+  isRestoring: false,
 
   startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => {
     set({ 
@@ -78,6 +98,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       const data = await response.json()
       const taskId = data.taskId
 
+      // Save taskId to URL for persistence
+      updateUrlWithTaskId(taskId)
+
       set({ 
         taskId,
         status: 'building',
@@ -102,7 +125,27 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     }
   },
 
+  // Restore state from a taskId (e.g., after page refresh)
+  restoreFromTaskId: async (taskId: string) => {
+    set({
+      isRestoring: true,
+      status: 'building',
+      progress: 0,
+      logs: ['> RESTORING SESSION...', `> TASK ID: ${taskId}`, '> FETCHING BUILD STATUS...'],
+      taskId,
+      fileName: null,
+      error: null,
+    })
+
+    // Poll for current status
+    await pollBuildStatus(taskId, set, get)
+    set({ isRestoring: false })
+  },
+
   reset: () => {
+    // Clear URL parameter
+    updateUrlWithTaskId(null)
+    
     set({
       status: 'idle',
       progress: 0,
@@ -115,6 +158,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       retentionHours: null,
       queuePosition: null,
       queueTotal: null,
+      isRestoring: false,
     })
   },
 }))
@@ -132,6 +176,16 @@ async function pollBuildStatus(
       const response = await fetch(`/api/build/${taskId}/status`)
       
       if (!response.ok) {
+        // Handle 404 - task not found (expired or invalid)
+        if (response.status === 404) {
+          updateUrlWithTaskId(null) // Clear invalid taskId from URL
+          set({
+            status: 'error',
+            error: 'TASK NOT FOUND OR EXPIRED',
+            logs: [...get().logs, '[ERROR] Task not found. It may have expired or been deleted.'],
+          })
+          return
+        }
         // Try to parse error message from response
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || `STATUS CHECK FAILED: ${response.status}`)

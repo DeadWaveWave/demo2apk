@@ -1,13 +1,23 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Header from './components/Header'
 import UploadZone from './components/UploadZone'
 import BuildProgress from './components/BuildProgress'
 import BuildComplete from './components/BuildComplete'
-import { useBuildStore } from './hooks/useBuildStore'
+import { useBuildStore, getTaskIdFromUrl } from './hooks/useBuildStore'
 
 function App() {
-  const { status, error, reset, taskId } = useBuildStore()
+  const { status, error, reset, taskId, restoreFromTaskId, isRestoring } = useBuildStore()
   const { t } = useTranslation()
+
+  // Restore state from URL on mount
+  useEffect(() => {
+    const urlTaskId = getTaskIdFromUrl()
+    // Only restore if we have a taskId in URL and we're currently idle
+    if (urlTaskId && status === 'idle' && !isRestoring) {
+      restoreFromTaskId(urlTaskId)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">

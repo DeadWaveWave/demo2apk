@@ -143,7 +143,13 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
       });
     }
 
-    const filename = path.basename(apkPath);
+    // Get original filename without taskId suffix for user download
+    // Internal format: "appName--taskId.apk", user sees: "appName.apk"
+    let filename = path.basename(apkPath);
+    const taskIdMatch = filename.match(/^(.+)--[a-zA-Z0-9]+\.apk$/);
+    if (taskIdMatch) {
+      filename = `${taskIdMatch[1]}.apk`;
+    }
     
     // Handle non-ASCII filenames (RFC 5987)
     // Provide both ASCII fallback and UTF-8 encoded filename

@@ -117,6 +117,7 @@ export interface ReactBuildOptions {
   appId?: string;
   outputDir?: string;
   iconPath?: string;  // Custom icon path (optional)
+  taskId?: string;    // Task ID for unique file naming (prevents concurrent build conflicts)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -222,6 +223,40 @@ module.exports = nextConfig;
 /**
  * Build APK from React project ZIP
  */
+/**
+ * Create a progress heartbeat that sends periodic updates during long-running commands.
+ * This prevents the frontend from appearing stuck.
+ */
+function createProgressHeartbeat(
+  onProgress: ((message: string, percent?: number) => void) | undefined,
+  baseMessage: string,
+  startPercent: number,
+  endPercent: number,
+  intervalMs = 5000
+): { start: () => void; stop: () => void } {
+  let timer: NodeJS.Timeout | null = null;
+  let currentPercent = startPercent;
+  const increment = Math.max(1, Math.floor((endPercent - startPercent) / 10)); // Max 10 increments
+  
+  return {
+    start: () => {
+      if (!onProgress) return;
+      timer = setInterval(() => {
+        if (currentPercent < endPercent - increment) {
+          currentPercent += increment;
+          onProgress(`${baseMessage} (in progress...)`, currentPercent);
+        }
+      }, intervalMs);
+    },
+    stop: () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    },
+  };
+}
+
 export async function buildReactToApk(options: ReactBuildOptions): Promise<BuildResult> {
   const startTime = Date.now();
   const {
@@ -230,6 +265,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     appId = 'com.example.reactapp',
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
+    taskId,
     onProgress,
   } = options;
 
@@ -335,18 +371,32 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       npm_config_production: 'false',
     };
 
-    await execa(packageManager, installArgs, {
-      cwd: projectDir,
-      env: buildEnv,
-    });
+    // Use heartbeat to show progress during long npm install
+    const installHeartbeat = createProgressHeartbeat(onProgress, 'Installing dependencies', 25, 38);
+    installHeartbeat.start();
+    try {
+      await execa(packageManager, installArgs, {
+        cwd: projectDir,
+        env: buildEnv,
+      });
+    } finally {
+      installHeartbeat.stop();
+    }
 
     onProgress?.('Building React project...', 40);
 
     // Build project (vite build will set NODE_ENV=production internally for optimization)
-    await execa(packageManager, ['run', 'build'], {
-      cwd: projectDir,
-      env: buildEnv,
-    });
+    // Use heartbeat to show progress during long build
+    const buildHeartbeat = createProgressHeartbeat(onProgress, 'Building React project', 40, 53);
+    buildHeartbeat.start();
+    try {
+      await execa(packageManager, ['run', 'build'], {
+        cwd: projectDir,
+        env: buildEnv,
+      });
+    } finally {
+      buildHeartbeat.stop();
+    }
 
     // Verify build output
     const buildPath = path.join(projectDir, buildDir);
@@ -441,15 +491,22 @@ export default config;
     // Build APK with memory-optimized settings
     await fs.chmod(path.join(androidDir, 'gradlew'), 0o755);
 
-    // Limit Gradle JVM heap to 1GB to prevent OOM in containers with 2GB limit
-    await execa('./gradlew', ['assembleDebug', '--no-daemon'], {
-      cwd: androidDir,
-      env: {
-        ...process.env,
-        // Limit Gradle daemon/forked process memory to prevent OOM
-        GRADLE_OPTS: '-Xmx1024m -Dorg.gradle.jvmargs="-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"',
-      },
-    });
+    // Use heartbeat to show progress during long Gradle build
+    const gradleHeartbeat = createProgressHeartbeat(onProgress, 'Building APK', 80, 93);
+    gradleHeartbeat.start();
+    try {
+      // Limit Gradle JVM heap to 1GB to prevent OOM in containers with 2GB limit
+      await execa('./gradlew', ['assembleDebug', '--no-daemon'], {
+        cwd: androidDir,
+        env: {
+          ...process.env,
+          // Limit Gradle daemon/forked process memory to prevent OOM
+          GRADLE_OPTS: '-Xmx1024m -Dorg.gradle.jvmargs="-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"',
+        },
+      });
+    } finally {
+      gradleHeartbeat.stop();
+    }
 
     onProgress?.('Exporting APK...', 95);
 
@@ -468,8 +525,18 @@ export default config;
       return { success: false, error: 'APK build failed - output file not found' };
     }
 
-    const apkDest = path.join(outputDir, `${appName}.apk`);
+    // Use taskId in filename to prevent concurrent build conflicts
+    // Format: appName--taskId.apk (e.g., "MyApp--abc123.apk")
+    const apkFileName = taskId ? `${appName}--${taskId}.apk` : `${appName}.apk`;
+    const apkDest = path.join(outputDir, apkFileName);
     await fs.copy(apkSource, apkDest);
+    
+    // Verify the APK file is valid and complete
+    const destStats = await fs.stat(apkDest);
+    const sourceStats = await fs.stat(apkSource);
+    if (destStats.size !== sourceStats.size) {
+      return { success: false, error: 'APK copy verification failed - file sizes do not match' };
+    }
 
     const duration = Date.now() - startTime;
 

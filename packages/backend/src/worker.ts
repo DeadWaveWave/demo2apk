@@ -96,6 +96,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         appId,
         iconPath,
         outputDir,
+        taskId,  // Pass taskId for unique APK filename
         onProgress,
       });
     } else {

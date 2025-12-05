@@ -1,5 +1,17 @@
-import { Job } from 'bullmq';
+// Load environment variables from .env file (must be first!)
+import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root (2 levels up from dist/worker.js)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Also try loading from monorepo root (3 levels up)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+import { Job } from 'bullmq';
 import fs from 'fs-extra';
 import {
   createBuildWorker,

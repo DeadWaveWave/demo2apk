@@ -179,19 +179,20 @@ async function pollBuildStatus(
         const queuePosition = data.queuePosition || null
         const queueTotal = data.queueTotal || null
         
-        // Add queue info to logs if position changed
-        if (queuePosition && queuePosition !== get().queuePosition) {
+        // Always update queue position in logs with latest values
+        // Remove any old queue position logs first
+        const filteredLogs = newLogs.filter(log => !log.includes('QUEUE POSITION:'))
+        
+        // Add current queue info
+        if (queuePosition) {
           const queueMsg = queueTotal 
             ? `> QUEUE POSITION: ${queuePosition}/${queueTotal}`
             : `> QUEUE POSITION: ${queuePosition}`
-          if (!newLogs.includes(queueMsg)) {
-            // Remove old queue position logs
-            const filteredLogs = newLogs.filter(log => !log.includes('QUEUE POSITION:'))
-            filteredLogs.push(queueMsg)
-            newLogs.length = 0
-            newLogs.push(...filteredLogs)
-          }
+          filteredLogs.push(queueMsg)
         }
+        
+        newLogs.length = 0
+        newLogs.push(...filteredLogs)
 
         set({ 
           status: 'queued',

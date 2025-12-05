@@ -180,16 +180,28 @@ export async function getJobStatus(
         getJobPosition(redisUrl, taskId),
         getQueueStats(redisUrl),
       ]);
+      // Position 1 means first in queue, return meaningful total (waiting + active)
       return {
         status: 'pending',
         createdAt,
         appName,
-        queuePosition: position,
-        queueTotal: stats.waiting,
+        queuePosition: position || 1,  // At least 1 if in waiting state
+        queueTotal: stats.waiting + stats.active,  // Show total jobs ahead/processing
       };
     }
-    default:
-      return { status: 'not_found' };
+    default: {
+      // Handle any unexpected state as pending if job exists
+      // Log for debugging
+      console.warn(`[Queue] Unexpected job state: ${state} for task ${taskId}`);
+      const stats = await getQueueStats(redisUrl);
+      return {
+        status: 'pending',
+        createdAt,
+        appName,
+        queuePosition: 1,
+        queueTotal: stats.waiting + stats.active,
+      };
+    }
   }
 }
 

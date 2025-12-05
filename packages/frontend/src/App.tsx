@@ -38,7 +38,7 @@ function App() {
           <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-bp-blue/50" />
 
           {status === 'idle' && <UploadZone />}
-          {(status === 'uploading' || status === 'building') && <BuildProgress />}
+          {(status === 'uploading' || status === 'queued' || status === 'building') && <BuildProgress />}
           {status === 'completed' && <BuildComplete />}
           
           {status === 'error' && (

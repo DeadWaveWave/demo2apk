@@ -1,10 +1,21 @@
+// Load environment variables from .env file (must be first!)
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root (2 levels up from dist/index.js)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Also try loading from monorepo root (3 levels up)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { buildRoutes } from './routes/build.js';
 import { statusRoutes } from './routes/status.js';
 import { getRedisConnection } from './services/queue.js';
@@ -17,8 +28,6 @@ declare module 'fastify' {
     startTime: number;
   }
 }
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface ServerConfig {
   port: number;
@@ -33,10 +42,17 @@ export interface ServerConfig {
   fileRetentionHours: number;
 }
 
+// Resolve builds directory to absolute path (required by fastifyStatic)
+function resolveBuildsDir(): string {
+  const dir = process.env.BUILDS_DIR || 'builds';
+  // If already absolute, use as-is; otherwise resolve relative to cwd
+  return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+}
+
 const defaultConfig: ServerConfig = {
   port: parseInt(process.env.PORT || '3000', 10),
   host: process.env.HOST || '0.0.0.0',
-  buildsDir: process.env.BUILDS_DIR || path.join(process.cwd(), 'builds'),
+  buildsDir: resolveBuildsDir(),
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '31457280', 10), // 30MB
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '5', 10),

@@ -162,43 +162,42 @@ function sanitizeDirName(name: string): string {
 
 /**
  * Generate a valid Android package ID from app name
+ * - Convert non-ASCII to pinyin
+ * - Remove all separators inside the suffix (no dots), only keep [a-z0-9]
+ * - Ensure starts with letter and apply max length
+ * - Prefix is always com.demo2apk.*
  */
 export function generateAppId(appName: string): string {
+  const MAX_SUFFIX_LENGTH = 30;
+
   // Step 1: convert non-ASCII (e.g., Chinese) to pinyin to keep uniqueness across languages
   let latinName = appName;
   try {
     const py = pinyin(appName, { toneType: 'none', type: 'array', nonZh: 'consecutive' });
-    latinName = Array.isArray(py) ? py.join(' ') : String(py);
+    latinName = Array.isArray(py) ? py.join('') : String(py);
   } catch {
     // Fallback to original name if pinyin conversion fails
     latinName = appName;
   }
 
-  // Step 2: sanitize to Android-safe segments
+  // Step 2: sanitize to Android-safe suffix (no dots inside the suffix)
   let sanitized = latinName
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '.')
-    .replace(/\.+/g, '.')
-    .replace(/^\.+|\.+$/g, '');
+    .replace(/[^a-z0-9]+/g, '');
 
   if (!sanitized) {
     sanitized = 'app';
   }
 
-  // Ensure each segment starts with a letter
-  const parts = sanitized.split('.');
-  const fixedParts = parts.map((part, idx) => {
-    if (!part) {
-      return `app${idx}`;
-    }
-    if (!/^[a-z]/.test(part)) {
-      return `a${part}`;
-    }
-    return part;
-  });
+  // Ensure starts with a letter
+  if (!/^[a-z]/.test(sanitized)) {
+    sanitized = `a${sanitized}`;
+  }
 
-  //统一使用 com.demo2apk.* 前缀
-  return `com.demo2apk.${fixedParts.join('.')}`;
+  // Apply max length to avoid overly long package names
+  sanitized = sanitized.slice(0, MAX_SUFFIX_LENGTH);
+
+  return `com.demo2apk.${sanitized}`;
 }
 
 /**

@@ -65,25 +65,17 @@ print_step() {
 generate_app_id() {
     local raw="$1"
     local sanitized
-    sanitized="$(echo "$raw" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/./g')"
-    sanitized="$(echo "$sanitized" | sed -E 's/\.+/./g; s/^\.+//; s/\.+$//')"
+    local MAX_LEN=30
+    sanitized="$(echo "$raw" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+//g')"
     if [ -z "$sanitized" ]; then
         sanitized="app"
     fi
 
-    local IFS='.'
-    read -r -a parts <<< "$sanitized"
-    local fixed_parts=()
-    for idx in "${!parts[@]}"; do
-        local part="${parts[$idx]}"
-        if [ -z "$part" ]; then
-            part="app$idx"
-        elif [[ ! "$part" =~ ^[a-z] ]]; then
-            part="a${part}"
-        fi
-        fixed_parts+=("$part")
-    done
-    sanitized="$(IFS='.'; echo "${fixed_parts[*]}")"
+    if [[ ! "$sanitized" =~ ^[a-z] ]]; then
+        sanitized="a${sanitized}"
+    fi
+
+    sanitized="${sanitized:0:$MAX_LEN}"
 
     echo "com.demo2apk.${sanitized}"
 }

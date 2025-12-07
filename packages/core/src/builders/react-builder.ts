@@ -447,13 +447,17 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
 
     onProgress?.('Configuring Capacitor...', 60);
 
-    // Create Capacitor config
+    // Create Capacitor config (use JSON.stringify to safely escape quotes/newlines)
+    const serializedAppId = JSON.stringify(appId);
+    const serializedAppName = JSON.stringify(appName);
+    const serializedBuildDir = JSON.stringify(buildDir);
+
     const capacitorConfig = `import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: '${appId}',
-  appName: '${appName}',
-  webDir: '${buildDir}',
+  appId: ${serializedAppId},
+  appName: ${serializedAppName},
+  webDir: ${serializedBuildDir},
   bundledWebRuntime: false,
   android: {
     buildOptions: {

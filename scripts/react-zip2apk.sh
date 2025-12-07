@@ -295,13 +295,17 @@ print_success "Capacitor 安装完成"
 print_step "初始化 Capacitor"
 
 # 创建 Capacitor 配置
+SANITIZED_APP_ID=$(APP_ID="$APP_ID" node -p "JSON.stringify(process.env.APP_ID || '')")
+SANITIZED_APP_NAME=$(APP_NAME="$APP_NAME" node -p "JSON.stringify(process.env.APP_NAME || '')")
+SANITIZED_BUILD_DIR=$(BUILD_DIR="$BUILD_DIR" node -p "JSON.stringify(process.env.BUILD_DIR || '')")
+
 cat > capacitor.config.ts << EOF
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: '$APP_ID',
-  appName: '$APP_NAME',
-  webDir: '$BUILD_DIR',
+  appId: $SANITIZED_APP_ID,
+  appName: $SANITIZED_APP_NAME,
+  webDir: $SANITIZED_BUILD_DIR,
   bundledWebRuntime: false,
   android: {
     buildOptions: {

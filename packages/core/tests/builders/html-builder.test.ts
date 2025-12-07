@@ -10,7 +10,7 @@ describe('HtmlBuilder', () => {
 
     it('should handle app name with spaces', () => {
       const result = generateAppId('My Cool App');
-      expect(result).toBe('com.demo2apk.my.cool.app');
+      expect(result).toBe('com.demo2apk.mycoolapp');
     });
 
     it('should handle app name starting with number', () => {
@@ -20,13 +20,13 @@ describe('HtmlBuilder', () => {
 
     it('should handle Chinese characters', () => {
       const result = generateAppId('我的应用');
-      // Chinese characters are converted to pinyin segments
-      expect(result).toBe('com.demo2apk.wo.de.ying.yong');
+      // Chinese characters are converted to pinyin and concatenated without dots
+      expect(result).toBe('com.demo2apk.wodeyingyong');
     });
 
     it('should handle mixed special characters', () => {
       const result = generateAppId('My_App-Test!@#');
-      expect(result).toBe('com.demo2apk.my.app.test');
+      expect(result).toBe('com.demo2apk.myapptest');
     });
 
     it('should handle empty string', () => {
@@ -41,7 +41,7 @@ describe('HtmlBuilder', () => {
 
     it('should handle multiple consecutive special characters', () => {
       const result = generateAppId('My---App___Test');
-      expect(result).toBe('com.demo2apk.my.app.test');
+      expect(result).toBe('com.demo2apk.myapptest');
     });
   });
 

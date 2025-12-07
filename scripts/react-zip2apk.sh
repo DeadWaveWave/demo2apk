@@ -61,7 +61,7 @@ fi
 
 ZIP_FILE="$1"
 APP_NAME="${2:-MyReactApp}"
-APP_ID="${3:-com.example.reactapp}"
+APP_ID="${3:-com.demo2apk.reactapp}"
 
 # 检查 ZIP 文件是否存在
 if [ ! -f "$ZIP_FILE" ]; then

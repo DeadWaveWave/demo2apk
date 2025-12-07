@@ -85,7 +85,7 @@ generate_app_id() {
     done
     sanitized="$(IFS='.'; echo "${fixed_parts[*]}")"
 
-    echo "com.vibecoding.${sanitized}"
+    echo "com.demo2apk.${sanitized}"
 }
 
 # 确保本地可用的 Gradle（无系统 gradle 时使用镜像下载）

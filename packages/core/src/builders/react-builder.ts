@@ -284,7 +284,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
   const {
     zipPath,
     appName = 'MyReactApp',
-    appId = 'com.example.reactapp',
+    appId = 'com.demo2apk.reactapp',
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,

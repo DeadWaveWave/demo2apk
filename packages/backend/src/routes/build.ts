@@ -137,7 +137,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
         filePath = zipPath;
         buildType = 'zip';
-        appId = appId || 'com.example.reactapp';
+        appId = appId || 'com.demo2apk.reactapp';
 
         logger.info('React component wrapped successfully', {
           taskId,
@@ -267,7 +267,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Use filename as app name if not provided
     const uploadedBaseName = path.parse(zipFile.filename).name;
     appName = appName || uploadedBaseName || 'MyReactApp';
-    appId = appId || 'com.example.reactapp';
+    appId = appId || 'com.demo2apk.reactapp';
 
     const fileSize = zipFile.buffer.length;
 
@@ -454,7 +454,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath = zipPath;
         buildType = 'zip';
         appName = appName || 'ReactApp';
-        appId = appId || 'com.example.reactapp';
+        appId = appId || 'com.demo2apk.reactapp';
 
         logger.info('React component wrapped successfully', {
           taskId,

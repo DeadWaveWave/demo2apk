@@ -4,6 +4,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { execa, execaCommand } from 'execa';
 import sharp from 'sharp';
+import { pinyin } from 'pinyin-pro';
 import { detectAndroidSdk, setupAndroidEnv, detectCordova } from '../utils/android-sdk.js';
 import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
 
@@ -163,8 +164,18 @@ function sanitizeDirName(name: string): string {
  * Generate a valid Android package ID from app name
  */
 export function generateAppId(appName: string): string {
-  // Sanitize: lowercase, replace non-alphanumeric with dots
-  let sanitized = appName
+  // Step 1: convert non-ASCII (e.g., Chinese) to pinyin to keep uniqueness across languages
+  let latinName = appName;
+  try {
+    const py = pinyin(appName, { toneType: 'none', type: 'array', nonZh: 'consecutive' });
+    latinName = Array.isArray(py) ? py.join(' ') : String(py);
+  } catch {
+    // Fallback to original name if pinyin conversion fails
+    latinName = appName;
+  }
+
+  // Step 2: sanitize to Android-safe segments
+  let sanitized = latinName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '.')
     .replace(/\.+/g, '.')
@@ -186,7 +197,8 @@ export function generateAppId(appName: string): string {
     return part;
   });
 
-  return `com.vibecoding.${fixedParts.join('.')}`;
+  //统一使用 com.demo2apk.* 前缀
+  return `com.demo2apk.${fixedParts.join('.')}`;
 }
 
 /**

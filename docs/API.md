@@ -66,7 +66,7 @@ POST /api/build/zip
 | ------- | ------ | ---- | ---------------------------------- |
 | file    | File   | 是   | 项目 ZIP 包                        |
 | appName | string | 否   | 应用名称 (默认 "MyReactApp")       |
-| appId   | string | 否   | 包名 (默认 "com.example.reactapp") |
+| appId   | string | 否   | 包名 (默认 "com.demo2apk.reactapp") |
 
 **支持项目:**
 - Vite + React

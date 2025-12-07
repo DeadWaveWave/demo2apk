@@ -5,43 +5,43 @@ describe('HtmlBuilder', () => {
   describe('generateAppId', () => {
     it('should generate valid package ID from simple app name', () => {
       const result = generateAppId('MyApp');
-      expect(result).toBe('com.vibecoding.myapp');
+      expect(result).toBe('com.demo2apk.myapp');
     });
 
     it('should handle app name with spaces', () => {
       const result = generateAppId('My Cool App');
-      expect(result).toBe('com.vibecoding.my.cool.app');
+      expect(result).toBe('com.demo2apk.my.cool.app');
     });
 
     it('should handle app name starting with number', () => {
       const result = generateAppId('123App');
-      expect(result).toBe('com.vibecoding.a123app');
+      expect(result).toBe('com.demo2apk.a123app');
     });
 
     it('should handle Chinese characters', () => {
       const result = generateAppId('我的应用');
-      // Chinese characters are replaced with dots, resulting in empty string, defaulting to "app"
-      expect(result).toBe('com.vibecoding.app');
+      // Chinese characters are converted to pinyin segments
+      expect(result).toBe('com.demo2apk.wo.de.ying.yong');
     });
 
     it('should handle mixed special characters', () => {
       const result = generateAppId('My_App-Test!@#');
-      expect(result).toBe('com.vibecoding.my.app.test');
+      expect(result).toBe('com.demo2apk.my.app.test');
     });
 
     it('should handle empty string', () => {
       const result = generateAppId('');
-      expect(result).toBe('com.vibecoding.app');
+      expect(result).toBe('com.demo2apk.app');
     });
 
     it('should handle only special characters', () => {
       const result = generateAppId('!@#$%');
-      expect(result).toBe('com.vibecoding.app');
+      expect(result).toBe('com.demo2apk.app');
     });
 
     it('should handle multiple consecutive special characters', () => {
       const result = generateAppId('My---App___Test');
-      expect(result).toBe('com.vibecoding.my.app.test');
+      expect(result).toBe('com.demo2apk.my.app.test');
     });
   });
 

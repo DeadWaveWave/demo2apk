@@ -24,11 +24,11 @@ export default function UploadZone() {
   }, [buildType, htmlCode])
   
   // Auto-fill app name from detected React component name
-  useEffect(() => {
-    if (codeDetection?.appNameHint && !appName) {
-      setAppName(codeDetection.appNameHint)
-    }
-  }, [codeDetection?.appNameHint])
+  // useEffect(() => {
+  //   if (codeDetection?.appNameHint && !appName) {
+  //     setAppName(codeDetection.appNameHint)
+  //   }
+  // }, [codeDetection?.appNameHint])
 
   // Max icon size: 2MB
   const MAX_ICON_SIZE = 2 * 1024 * 1024
@@ -390,7 +390,7 @@ export default function UploadZone() {
                   {codeDetection.confidence >= 50 && ' ✓'}
                 </span>
               )}
-              <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
+            <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
             </div>
           </div>
           
@@ -463,6 +463,39 @@ export default function UploadZone() {
             {buildType === 'html' 
               ? t('upload.maxSizeLabelCode', { formats: 'HTML/JS/JSX/TSX' })
               : t('upload.maxSizeLabel', { format: 'ZIP' })}
+          </div>
+        </div>
+      )}
+
+      {/* Smart Detection Info - Only show in ZIP mode */}
+      {buildType === 'zip' && (
+        <div className="border border-green-500/30 bg-green-500/5 p-3 md:p-4 relative">
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-green-500/50" />
+          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-green-500/50" />
+          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-green-500/50" />
+          <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-green-500/50" />
+
+          <div className="flex items-start gap-2 md:gap-3">
+            <div className="text-green-400 text-base md:text-lg flex-shrink-0">🔍</div>
+            <div className="text-xs font-mono text-bp-dim space-y-1">
+              <p className="text-green-400 font-bold">
+                {t('upload.zipSmartDetect', 'Smart Project Detection')}
+              </p>
+              <p className="text-bp-text">
+                {t('upload.zipSmartDetectDesc', 'We automatically detect your project type and choose the best build approach:')}
+              </p>
+              <div className="flex flex-wrap gap-2 md:gap-4 text-[10px] pt-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-bp-blue">⚛️</span>
+                  <span className="text-bp-dim">{t('upload.zipTypeReact', 'React/Vite → npm build')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-bp-cyan">📄</span>
+                  <span className="text-bp-dim">{t('upload.zipTypeHtml', 'HTML+JS+CSS → Direct package')}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

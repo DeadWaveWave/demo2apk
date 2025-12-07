@@ -42,7 +42,7 @@ export interface LogContext {
   // 构建信息
   appName?: string;
   appId?: string;
-  buildType?: 'html' | 'zip';
+  buildType?: 'html' | 'zip' | 'html-project';
   fileSize?: number;
   fileName?: string;
 
@@ -268,14 +268,14 @@ export class Logger {
   /**
    * 记录构建任务创建
    */
-  buildCreated(taskId: string, appName: string, buildType: 'html' | 'zip', extra?: LogContext): void {
+  buildCreated(taskId: string, appName: string, buildType: 'html' | 'zip' | 'html-project', extra?: LogContext): void {
     this.info('Build task created', { taskId, appName, buildType, ...extra });
   }
 
   /**
    * 记录构建开始
    */
-  buildStart(taskId: string, appName: string, buildType: 'html' | 'zip', extra?: LogContext): void {
+  buildStart(taskId: string, appName: string, buildType: 'html' | 'zip' | 'html-project', extra?: LogContext): void {
     this.info('Build started', { taskId, appName, buildType, ...extra });
   }
 

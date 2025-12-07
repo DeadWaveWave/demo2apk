@@ -32,17 +32,17 @@ const resources = {
                 switchToCustom: 'SWITCH TO CUSTOM',
                 customPlaceholder: 'ENTER_CUSTOM_APP_NAME',
                 autoBadge: 'AUTO',
-                helperAuto: '📁 APP NAME WILL MATCH UPLOADED FILENAME',
-                helperPaste: '⚠️ CUSTOM NAME REQUIRED FOR PASTED CODE',
+                helperAuto: '📁 Supports: .html, .js, .jsx, .tsx (Auto-detects React components)',
+                helperPaste: '⚠️ Paste HTML, JS, JSX, TS, or TSX code directly',
                 helperCustom: '✏️ ENTER CUSTOM APP NAME ABOVE',
                 clickToEdit: '[CLICK TO EDIT]',
                 currentMode: 'CURRENT_MODE',
                 uploadHtml: 'UPLOAD_HTML',
                 pasteHtml: 'PASTE_HTML',
                 reactBundle: 'REACT_BUNDLE',
-                modeUploadHtml: 'MODE_A: UPLOAD_CODE',
-                modePasteCode: 'MODE_B: PASTE_CODE',
-                modeReactZip: 'MODE_C: REACT_ZIP',
+                modeUploadHtml: 'MODE A: SINGLE FILE',
+                modePasteCode: 'MODE B: PASTE CODE',
+                modeReactZip: 'MODE C: ZIP ARCHIVE',
                 sectionLabel: 'SECTION: DATA_INGESTION',
                 releaseToUpload: '>> RELEASE TO UPLOAD <<',
                 initTransfer: 'INITIALIZE DATA TRANSFER',
@@ -50,25 +50,21 @@ const resources = {
                 maxSizeLabel: 'MAX_SIZE: 30MB // FMT: {{format}}',
                 maxSizeLabelCode: 'MAX: 30MB // {{formats}}',
                 submitReady: '>> INITIATE APK BUILD <<',
-                submitDisabled: 'ENTER HTML CODE',
+                submitDisabled: 'ENTER CODE TO START',
                 enterAppName: 'ENTER APP NAME FIRST',
                 charCount: 'CHARS: {{count}}',
-                htmlSupport: 'SUPPORTS COMPLETE HTML FILE CODE',
+                htmlSupport: 'SUPPORTS: HTML / JS / JSX / TSX',
                 warningTitle: 'WARNING: BLANK SCREEN PREVENTION',
                 warningBody:
                     'If your APK shows a white/blank screen after installation, your Vite config likely needs the @vitejs/plugin-legacy plugin.',
                 warningTip1: 'ES Modules not supported by old WebView',
                 warningTip2: 'Legacy plugin generates compatible code',
                 docsLink: 'VIEW FULL DOCUMENTATION',
-                textareaPlaceholder: `<!DOCTYPE html>
-<html>
-<head>
-  <title>My App</title>
-</head>
-<body>
-  <!-- PASTE YOUR HTML CODE HERE -->
-</body>
-</html>`,
+                textareaPlaceholder: `// Paste your code here
+// Supports:
+// 1. Full HTML documents (<!DOCTYPE html>...)
+// 2. React Components (export default function App...)
+// 3. Plain JavaScript/TypeScript`,
                 iconLabel: 'APP ICON',
                 iconPlaceholder: 'Optional: Upload custom icon',
                 removeIcon: 'Remove icon',
@@ -77,6 +73,10 @@ const resources = {
                 iconTooLarge: 'Icon file is too large. Maximum size is 2MB.',
                 reactDetected: 'React Component Detected!',
                 reactDetectedDesc: 'Your code will be automatically wrapped into a complete React project with Vite, Tailwind CSS, and all necessary dependencies.',
+                zipSmartDetect: 'Smart Project Detection',
+                zipSmartDetectDesc: 'We automatically detect your project type and choose the best build approach:',
+                zipTypeReact: 'React/Vite → npm build',
+                zipTypeHtml: 'HTML+JS+CSS → Direct package',
             },
             progress: {
                 statusProcessing: 'STATUS: PROCESSING...',
@@ -177,17 +177,17 @@ const resources = {
                 switchToCustom: '切换到自定义',
                 customPlaceholder: '请输入自定义应用名称',
                 autoBadge: '自动',
-                helperAuto: '📁 应用名称将与上传的文件名保持一致',
-                helperPaste: '⚠️ 粘贴模式必须填写自定义名称',
+                helperAuto: '📁 支持格式：.html, .js, .jsx, .tsx (自动识别 React 组件)',
+                helperPaste: '⚠️ 直接粘贴 HTML, JS, JSX, TS 或 TSX 代码',
                 helperCustom: '✏️ 请在上方输入自定义应用名称',
                 clickToEdit: '[点击编辑]',
                 currentMode: '当前模式',
                 uploadHtml: '上传 HTML',
                 pasteHtml: '粘贴 HTML',
                 reactBundle: '上传 React 包',
-                modeUploadHtml: '模式 A：上传代码',
-                modePasteCode: '模式 B：粘贴代码',
-                modeReactZip: '模式 C：React ZIP',
+                modeUploadHtml: '模式 A：单文件模式',
+                modePasteCode: '模式 B：代码粘贴模式',
+                modeReactZip: '模式 C：ZIP 压缩包模式',
                 sectionLabel: '区域：数据输入',
                 releaseToUpload: '>> 松手即可上传 <<',
                 initTransfer: '开始数据传输',
@@ -195,25 +195,21 @@ const resources = {
                 maxSizeLabel: '最大：30MB // 格式：{{format}}',
                 maxSizeLabelCode: '最大：30MB // {{formats}}',
                 submitReady: '>> 启动 APK 构建 <<',
-                submitDisabled: '请输入 HTML 代码',
+                submitDisabled: '请输入代码以开始',
                 enterAppName: '请先输入应用名称',
                 charCount: '字符：{{count}}',
-                htmlSupport: '支持完整 HTML 文件代码',
+                htmlSupport: '支持：HTML / JS / JSX / TSX',
                 warningTitle: '警告：白屏防护',
                 warningBody:
                     '如果安装后看到白屏，请在 Vite 配置中启用 @vitejs/plugin-legacy 插件。',
                 warningTip1: '旧版 WebView 不支持 ES Modules',
                 warningTip2: 'Legacy 插件会生成兼容代码',
                 docsLink: '查看完整文档',
-                textareaPlaceholder: `<!DOCTYPE html>
-<html>
-<head>
-  <title>我的应用</title>
-</head>
-<body>
-  <!-- 将 HTML 代码粘贴到此处 -->
-</body>
-</html>`,
+                textareaPlaceholder: `// 在此粘贴您的代码
+// 支持：
+// 1. 完整 HTML 文档 (<!DOCTYPE html>...)
+// 2. React 组件 (export default function App...)
+// 3. 普通 JavaScript/TypeScript 代码`,
                 iconLabel: '应用图标',
                 iconPlaceholder: '可选：上传自定义图标',
                 removeIcon: '移除图标',
@@ -222,6 +218,10 @@ const resources = {
                 iconTooLarge: '图标文件过大，最大支持 2MB。',
                 reactDetected: '检测到 React 组件！',
                 reactDetectedDesc: '您的代码将被自动包装为完整的 React 项目，包含 Vite、Tailwind CSS 和所有必要的依赖。',
+                zipSmartDetect: '智能项目检测',
+                zipSmartDetectDesc: '我们会自动识别您的项目类型，并选择最佳的打包方案：',
+                zipTypeReact: 'React/Vite → npm 构建',
+                zipTypeHtml: 'HTML+JS+CSS → 直接打包',
             },
             progress: {
                 statusProcessing: '状态：处理中...',

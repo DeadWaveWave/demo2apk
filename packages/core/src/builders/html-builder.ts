@@ -26,6 +26,18 @@ export interface HtmlBuildOptions {
   outputDir?: string;
   skipOfflineify?: boolean;
   iconPath?: string;  // Custom icon path (optional)
+  taskId?: string;    // Task ID for unique file naming
+  onProgress?: (message: string, percent?: number) => void;
+}
+
+export interface HtmlProjectBuildOptions {
+  zipPath: string;
+  projectRoot?: string;  // Root directory inside ZIP (if nested)
+  appName?: string;
+  appId?: string;
+  outputDir?: string;
+  iconPath?: string;
+  taskId?: string;
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -409,7 +421,9 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       return { success: false, error: 'APK build failed - output file not found' };
     }
 
-    const apkDest = path.join(outputDir, `${appName}.apk`);
+    // Use taskId in filename to prevent concurrent build conflicts
+    const apkFileName = options.taskId ? `${appName}--${options.taskId}.apk` : `${appName}.apk`;
+    const apkDest = path.join(outputDir, apkFileName);
     await fs.copy(apkSource, apkDest);
 
     // Cleanup temp directory
@@ -434,5 +448,240 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       duration: Date.now() - startTime,
     };
   }
+}
+
+/**
+ * Build APK from multi-file HTML project ZIP (HTML + JS + CSS)
+ * Uses Cordova, no npm build step needed
+ */
+export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): Promise<BuildResult> {
+  const startTime = Date.now();
+  const {
+    zipPath,
+    projectRoot = '',
+    appName = 'MyVibeApp',
+    appId = generateAppId(appName),
+    outputDir = path.join(process.cwd(), 'builds'),
+    iconPath,
+    taskId,
+    onProgress,
+  } = options;
+
+  try {
+    // Validate ZIP file exists
+    if (!(await fs.pathExists(zipPath))) {
+      return { success: false, error: `ZIP file not found: ${zipPath}` };
+    }
+
+    onProgress?.('Checking build environment...', 5);
+
+    // Check Android SDK
+    const sdkInfo = await detectAndroidSdk();
+    if (!sdkInfo.isValid) {
+      return { success: false, error: 'Android SDK not found. Please set ANDROID_HOME.' };
+    }
+    setupAndroidEnv(sdkInfo.androidHome);
+
+    // Check Cordova
+    const cordovaInfo = await detectCordova();
+    if (!cordovaInfo.isInstalled) {
+      onProgress?.('Installing Cordova CLI...', 10);
+      await execaCommand('npm install -g cordova');
+    }
+
+    // Create work directory
+    const safeAppName = sanitizeDirName(appName);
+    const workDir = path.join(outputDir, `${safeAppName}-html-build`);
+    await fs.remove(workDir);
+    await fs.ensureDir(workDir);
+
+    onProgress?.('Extracting project files...', 15);
+
+    // Extract ZIP to temp location
+    const extractDir = path.join(workDir, 'extracted');
+    await fs.ensureDir(extractDir);
+    await execa('unzip', ['-q', zipPath, '-d', extractDir]);
+
+    // Find the actual project root
+    let projectDir = extractDir;
+    if (projectRoot) {
+      projectDir = path.join(extractDir, projectRoot);
+    } else {
+      // Auto-detect: look for index.html
+      const entries = await fs.readdir(extractDir, { withFileTypes: true });
+      
+      // Check if index.html is at root
+      if (await fs.pathExists(path.join(extractDir, 'index.html'))) {
+        projectDir = extractDir;
+      } else {
+        // Check subdirectories
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const subPath = path.join(extractDir, entry.name, 'index.html');
+            if (await fs.pathExists(subPath)) {
+              projectDir = path.join(extractDir, entry.name);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Verify index.html exists
+    const indexHtmlPath = path.join(projectDir, 'index.html');
+    if (!(await fs.pathExists(indexHtmlPath))) {
+      // Try to find any HTML file
+      const htmlFiles = await findHtmlFiles(projectDir);
+      if (htmlFiles.length === 0) {
+        return { success: false, error: 'No index.html or HTML files found in the project' };
+      }
+      // Use the first HTML file and rename it
+      const firstHtml = htmlFiles[0];
+      await fs.move(firstHtml, indexHtmlPath);
+      onProgress?.(`Using ${path.basename(firstHtml)} as entry point`, 18);
+    }
+
+    onProgress?.('Creating Cordova project...', 25);
+
+    // Create Cordova project in a separate directory
+    const cordovaDir = path.join(workDir, 'cordova');
+    await fs.ensureDir(cordovaDir);
+
+    await execa('cordova', ['create', '.', appId, appName, '--no-telemetry'], {
+      cwd: cordovaDir,
+    });
+
+    onProgress?.('Installing cordova-android...', 32);
+
+    await execa('pnpm', ['add', 'cordova-android@14', '-D', '--ignore-workspace'], {
+      cwd: cordovaDir,
+      timeout: 120000,
+    });
+
+    onProgress?.('Adding Android platform...', 38);
+
+    await execa('cordova', ['platform', 'add', 'android', '--no-telemetry'], {
+      cwd: cordovaDir,
+      timeout: 60000,
+    });
+
+    // Inject app icon
+    onProgress?.('Injecting app icon...', 42);
+    await injectIcon(cordovaDir, iconPath, onProgress);
+
+    onProgress?.('Copying web resources...', 50);
+
+    // Clear www and copy all project files
+    const wwwDir = path.join(cordovaDir, 'www');
+    await fs.emptyDir(wwwDir);
+    
+    // Copy all files from project directory
+    await fs.copy(projectDir, wwwDir, {
+      filter: (src) => {
+        // Skip node_modules and hidden files
+        const relativePath = path.relative(projectDir, src);
+        return !relativePath.includes('node_modules') && 
+               !path.basename(src).startsWith('.') &&
+               !relativePath.includes('__MACOSX');
+      },
+    });
+
+    // Process index.html for Cordova
+    let indexHtml = await fs.readFile(path.join(wwwDir, 'index.html'), 'utf8');
+    indexHtml = prepareHtmlForCordova(indexHtml);
+    await fs.writeFile(path.join(wwwDir, 'index.html'), indexHtml);
+
+    onProgress?.('Syncing resources to Android platform...', 60);
+
+    await execa('cordova', ['prepare', 'android', '--no-telemetry'], {
+      cwd: cordovaDir,
+    });
+
+    onProgress?.('Setting up Gradle...', 65);
+
+    const androidDir = path.join(cordovaDir, 'platforms', 'android');
+    await ensureGradleWrapper(androidDir, onProgress);
+
+    onProgress?.('Building APK (this may take a few minutes)...', 75);
+
+    await execa('./gradlew', ['assembleDebug', '--no-daemon'], {
+      cwd: androidDir,
+      env: {
+        ...process.env,
+        GRADLE_OPTS: '-Xmx1024m -Dorg.gradle.jvmargs="-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"',
+      },
+    });
+
+    onProgress?.('Exporting APK...', 95);
+
+    const apkSource = path.join(
+      androidDir,
+      'app',
+      'build',
+      'outputs',
+      'apk',
+      'debug',
+      'app-debug.apk'
+    );
+
+    if (!(await fs.pathExists(apkSource))) {
+      return { success: false, error: 'APK build failed - output file not found' };
+    }
+
+    const apkFileName = taskId ? `${appName}--${taskId}.apk` : `${appName}.apk`;
+    const apkDest = path.join(outputDir, apkFileName);
+    await fs.copy(apkSource, apkDest);
+
+    // Verify copy
+    const destStats = await fs.stat(apkDest);
+    const sourceStats = await fs.stat(apkSource);
+    if (destStats.size !== sourceStats.size) {
+      return { success: false, error: 'APK copy verification failed' };
+    }
+
+    const duration = Date.now() - startTime;
+
+    onProgress?.('Build completed!', 100);
+
+    return {
+      success: true,
+      apkPath: apkDest,
+      duration,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      error: message,
+      duration: Date.now() - startTime,
+    };
+  }
+}
+
+/**
+ * Recursively find HTML files in a directory
+ */
+async function findHtmlFiles(dir: string): Promise<string[]> {
+  const htmlFiles: string[] = [];
+  
+  async function scan(currentDir: string) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      
+      if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+        await scan(fullPath);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (ext === '.html' || ext === '.htm') {
+          htmlFiles.push(fullPath);
+        }
+      }
+    }
+  }
+  
+  await scan(dir);
+  return htmlFiles;
 }
 

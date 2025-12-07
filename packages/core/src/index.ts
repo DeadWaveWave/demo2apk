@@ -1,9 +1,11 @@
 // Builders
 export {
   buildHtmlToApk,
+  buildHtmlProjectToApk,
   generateAppId,
   prepareHtmlForCordova,
   type HtmlBuildOptions,
+  type HtmlProjectBuildOptions,
   type BuildResult,
 } from './builders/html-builder.js';
 
@@ -51,3 +53,12 @@ export {
   type WrapperOptions,
   type WrapperResult,
 } from './utils/react-wrapper.js';
+
+// ZIP Detection
+export {
+  detectZipProjectType,
+  getZipProjectTypeLabel,
+  getRecommendedBuildApproach,
+  type ZipProjectType,
+  type ZipDetectionResult,
+} from './utils/zip-detector.js';

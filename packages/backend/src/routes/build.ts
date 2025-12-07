@@ -6,7 +6,13 @@ import { addBuildJob, BuildJobData } from '../services/queue.js';
 import { saveUploadedFile, initStorage } from '../services/storage.js';
 import type { ServerConfig } from '../index.js';
 import type { Logger } from '../utils/logger.js';
-import { detectCodeType, wrapReactComponent, createProjectZip } from '@demo2apk/core';
+import { 
+  detectCodeType, 
+  wrapReactComponent, 
+  createProjectZip,
+  detectZipProjectType,
+  getZipProjectTypeLabel,
+} from '@demo2apk/core';
 
 interface BuildRouteOptions {
   config: ServerConfig;
@@ -97,7 +103,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
     const fileSize = htmlFile.buffer.length;
     const fileContent = htmlFile.buffer.toString('utf8');
-    
+
     // Detect actual code type from content (not just extension)
     const detection = detectCodeType(fileContent);
 
@@ -142,13 +148,13 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       } else {
         // Save as HTML file
         filePath = await saveUploadedFile(
-          htmlFile.buffer,
+        htmlFile.buffer,
           htmlFile.filename.endsWith('.html') || htmlFile.filename.endsWith('.htm') 
             ? htmlFile.filename 
             : `${uploadedBaseName}.html`,
-          taskId,
-          { buildsDir: config.buildsDir }
-        );
+        taskId,
+        { buildsDir: config.buildsDir }
+      );
       }
 
       // Save icon file if provided
@@ -283,6 +289,34 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         { buildsDir: config.buildsDir }
       );
 
+      // Detect ZIP content type
+      const zipDetection = await detectZipProjectType(filePath);
+      
+      logger.info('ZIP content type detected', {
+        taskId,
+        projectType: zipDetection.type,
+        confidence: zipDetection.confidence,
+        hints: zipDetection.hints,
+        projectRoot: zipDetection.projectRoot,
+        hasPackageJson: zipDetection.hasPackageJson,
+        hasIndexHtml: zipDetection.hasIndexHtml,
+        fileCount: zipDetection.fileCount,
+      });
+
+      // Determine build type based on detection
+      let buildType: 'zip' | 'html-project';
+      
+      if (zipDetection.type === 'react-project') {
+        // React/Vite project - needs npm build
+        buildType = 'zip';
+      } else if (zipDetection.type === 'html-project' || zipDetection.type === 'html-single') {
+        // Static HTML project - direct Cordova packaging
+        buildType = 'html-project';
+      } else {
+        // Unknown - try React builder as fallback if it has package.json
+        buildType = zipDetection.hasPackageJson ? 'zip' : 'html-project';
+      }
+
       // Save icon file if provided
       let iconPath: string | undefined;
       if (iconFile) {
@@ -297,24 +331,36 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Create job data
       const jobData: BuildJobData = {
         taskId,
-        type: 'zip',
+        type: buildType,
         filePath,
         appName,
         appId,
         iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
+        // Pass detection metadata for worker
+        zipProjectRoot: zipDetection.projectRoot,
       };
 
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      logger.buildCreated(taskId, appName, 'zip', { fileSize, appId, hasIcon: !!iconPath });
+      logger.buildCreated(taskId, appName, buildType, { 
+        fileSize, 
+        appId, 
+        hasIcon: !!iconPath,
+        detectedZipType: zipDetection.type,
+        confidence: zipDetection.confidence,
+      });
 
       return {
         taskId,
         message: 'Build job created successfully',
         status: 'pending',
+        detectedProjectType: zipDetection.type,
+        detectedProjectLabel: getZipProjectTypeLabel(zipDetection.type),
+        confidence: zipDetection.confidence,
+        buildApproach: buildType === 'zip' ? 'React/Vite Build' : 'Direct Cordova',
         statusUrl: `/api/build/${taskId}/status`,
         downloadUrl: `/api/build/${taskId}/download`,
       };

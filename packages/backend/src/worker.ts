@@ -19,7 +19,7 @@ import {
   BuildJobResult,
   getRedisConnection,
 } from './services/queue.js';
-import { buildHtmlToApk, buildReactToApk } from '@demo2apk/core';
+import { buildHtmlToApk, buildReactToApk, buildHtmlProjectToApk } from '@demo2apk/core';
 import { createLogger, Logger } from './utils/logger.js';
 
 // Worker 根 Logger
@@ -35,7 +35,7 @@ const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 1
  * Process a build job
  */
 async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<BuildJobResult> {
-  const { type, filePath, appName, appId, iconPath, outputDir, taskId } = job.data;
+  const { type, filePath, appName, appId, iconPath, outputDir, taskId, zipProjectRoot } = job.data;
   const startTime = Date.now();
 
   // 为此任务创建子 Logger
@@ -99,6 +99,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         appId,
         iconPath,
         outputDir,
+        taskId,  // Pass taskId for unique APK filename
         onProgress,
       });
     } else if (type === 'zip') {
@@ -109,6 +110,18 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         iconPath,
         outputDir,
         taskId,  // Pass taskId for unique APK filename
+        onProgress,
+      });
+    } else if (type === 'html-project') {
+      // Multi-file HTML project from ZIP (no npm build needed)
+      result = await buildHtmlProjectToApk({
+        zipPath: filePath,
+        projectRoot: zipProjectRoot,
+        appName,
+        appId,
+        iconPath,
+        outputDir,
+        taskId,
         onProgress,
       });
     } else {

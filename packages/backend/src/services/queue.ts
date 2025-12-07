@@ -2,7 +2,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { Logger } from '../utils/logger.js';
 
-export type BuildType = 'html' | 'zip';
+export type BuildType = 'html' | 'zip' | 'html-project';
 
 export interface BuildJobData {
   taskId: string;
@@ -13,6 +13,7 @@ export interface BuildJobData {
   iconPath?: string;  // Custom icon path (optional)
   outputDir: string;
   createdAt: string;
+  zipProjectRoot?: string;  // Root directory inside ZIP (for nested projects)
 }
 
 export interface BuildJobProgress {

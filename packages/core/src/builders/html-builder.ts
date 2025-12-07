@@ -83,21 +83,22 @@ async function resizeIcon(inputPath: string, outputPath: string, size: number): 
 async function injectIcon(
   workDir: string,
   customIconPath?: string,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
 ): Promise<void> {
   // Determine which icon to use
   let iconPath: string;
 
   if (customIconPath && await fs.pathExists(customIconPath)) {
     iconPath = customIconPath;
-    onProgress?.('Injecting custom app icon...');
+    onProgress?.('Injecting custom app icon...', progressPercent);
   } else {
     iconPath = getDefaultIconPath();
     if (!(await fs.pathExists(iconPath))) {
-      onProgress?.('No icon found, skipping icon injection');
+      onProgress?.('No icon found, skipping icon injection', progressPercent);
       return;
     }
-    onProgress?.('Injecting default app icon...');
+    onProgress?.('Injecting default app icon...', progressPercent);
   }
 
   // Create res directory for icons
@@ -225,16 +226,17 @@ export function prepareHtmlForCordova(htmlContent: string): string {
  */
 async function ensureGradleWrapper(
   androidDir: string,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
 ): Promise<void> {
   const gradlewPath = path.join(androidDir, 'gradlew');
 
   if (await fs.pathExists(gradlewPath)) {
-    onProgress?.('Gradle wrapper already exists');
+    onProgress?.('Gradle wrapper already exists', progressPercent);
     return;
   }
 
-  onProgress?.('Setting up Gradle wrapper...');
+  onProgress?.('Setting up Gradle wrapper...', progressPercent);
 
   // Check if gradle is available globally
   try {
@@ -349,7 +351,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
 
     // Inject app icon (custom or default)
     onProgress?.('Injecting app icon...', 42);
-    await injectIcon(workDir, iconPath, onProgress);
+    await injectIcon(workDir, iconPath, onProgress, 42);
 
     onProgress?.('Preparing web resources...', 45);
 
@@ -388,7 +390,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
 
     // Setup Gradle wrapper
     const androidDir = path.join(workDir, 'platforms', 'android');
-    await ensureGradleWrapper(androidDir, onProgress);
+    await ensureGradleWrapper(androidDir, onProgress, 60);
 
     onProgress?.('Building APK (this may take a few minutes)...', 70);
 
@@ -567,7 +569,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
 
     // Inject app icon
     onProgress?.('Injecting app icon...', 42);
-    await injectIcon(cordovaDir, iconPath, onProgress);
+    await injectIcon(cordovaDir, iconPath, onProgress, 42);
 
     onProgress?.('Copying web resources...', 50);
 
@@ -600,7 +602,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     onProgress?.('Setting up Gradle...', 65);
 
     const androidDir = path.join(cordovaDir, 'platforms', 'android');
-    await ensureGradleWrapper(androidDir, onProgress);
+    await ensureGradleWrapper(androidDir, onProgress, 65);
 
     onProgress?.('Building APK (this may take a few minutes)...', 75);
 

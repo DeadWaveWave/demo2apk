@@ -94,21 +94,22 @@ async function resizeIcon(inputPath: string, outputPath: string, size: number): 
 async function injectIconCapacitor(
   androidDir: string,
   customIconPath?: string,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
 ): Promise<void> {
   // Determine which icon to use
   let iconPath: string;
 
   if (customIconPath && await fs.pathExists(customIconPath)) {
     iconPath = customIconPath;
-    onProgress?.('Injecting custom app icon...');
+    onProgress?.('Injecting custom app icon...', progressPercent);
   } else {
     iconPath = getDefaultIconPath();
     if (!(await fs.pathExists(iconPath))) {
-      onProgress?.('No icon found, skipping icon injection');
+      onProgress?.('No icon found, skipping icon injection', progressPercent);
       return;
     }
-    onProgress?.('Injecting default app icon...');
+    onProgress?.('Injecting default app icon...', progressPercent);
   }
 
   const resDir = path.join(androidDir, 'app', 'src', 'main', 'res');
@@ -390,7 +391,6 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     // Can be overridden via BUILD_NODE_MEMORY environment variable
     const autoMemoryLimit = calculateNodeMemoryLimit();
     const nodeMemoryLimit = process.env.BUILD_NODE_MEMORY || String(autoMemoryLimit);
-    onProgress?.(`Memory limit: ${nodeMemoryLimit}MB (auto-detected: ${autoMemoryLimit}MB)`, 26);
 
     const buildEnv = {
       ...process.env,
@@ -491,7 +491,7 @@ export default config;
     // Inject app icon (custom or default)
     onProgress?.('Injecting app icon...', 75);
     const androidDir = path.join(projectDir, 'android');
-    await injectIconCapacitor(androidDir, iconPath, onProgress);
+    await injectIconCapacitor(androidDir, iconPath, onProgress, 75);
 
     // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
     // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,

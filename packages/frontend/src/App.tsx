@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import Header from './components/Header'
 import UploadZone from './components/UploadZone'
+import GuideSection from './components/GuideSection'
 import BuildProgress from './components/BuildProgress'
 import BuildComplete from './components/BuildComplete'
 import BuildHistory from './components/BuildHistory'
@@ -55,6 +56,7 @@ function App() {
 
           {status === 'idle' && (
             <>
+              <GuideSection />
               <UploadZone />
               <BuildHistory onRestore={handleRestoreFromHistory} />
             </>

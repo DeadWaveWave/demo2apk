@@ -164,7 +164,7 @@ export default function UploadZone() {
                 <button
                   type="button"
                   onClick={() => !isPasteMode && setUseFileName(false)}
-                  className={`w-full bg-bp-blue/10 border border-bp-blue p-3 md:p-4 text-left font-mono text-sm md:text-lg text-bp-blue flex items-center justify-between group transition-all ${isPasteMode ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bp-blue/20'
+                  className={`w-full bg-bp-blue/10 border border-bp-blue p-3 md:p-4 text-left font-mono text-sm md:text-lg text-bp-blue flex items-center justify-between group transition-all h-[60px] md:h-[72px] ${isPasteMode ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bp-blue/20'
                     }`}
                 >
                   <span className="flex items-center gap-2 md:gap-3 truncate">
@@ -189,7 +189,7 @@ export default function UploadZone() {
                     value={appName}
                     onChange={(e) => setAppName(e.target.value)}
                     placeholder={t('upload.customPlaceholder')}
-                    className="flex-1 bg-bp-dark/50 border border-green-500/50 p-3 md:p-4 text-green-400 font-mono text-sm md:text-lg focus:border-green-500 focus:outline-none focus:bg-green-500/5 transition-colors placeholder-green-500/30"
+                    className="flex-1 bg-bp-dark/50 border border-green-500/50 p-3 md:p-4 text-green-400 font-mono text-sm md:text-lg focus:border-green-500 focus:outline-none focus:bg-green-500/5 transition-colors placeholder-green-500/30 h-[60px] md:h-[72px]"
                     autoFocus={!useFileName} // Focus when switched to custom
                   />
                   {/* Toggle Button (Only if not in Paste Mode) */}
@@ -197,7 +197,7 @@ export default function UploadZone() {
                     <button
                       type="button"
                       onClick={() => setUseFileName(true)}
-                      className="px-2 md:px-4 border border-l-0 border-green-500/50 bg-green-500/10 text-green-500 hover:bg-green-500/20 font-mono text-[10px] md:text-xs uppercase tracking-wider transition-all"
+                      className="px-2 md:px-4 border border-l-0 border-green-500/50 bg-green-500/10 text-green-500 hover:bg-green-500/20 font-mono text-[10px] md:text-xs uppercase tracking-wider transition-all h-[60px] md:h-[72px]"
                       title="Click to use filename"
                     >
                       <div className="flex flex-col items-center gap-1">
@@ -230,7 +230,7 @@ export default function UploadZone() {
         </div>
 
         {/* Icon Upload (Optional) */}
-        <div className="relative group">
+        <div className="relative group flex flex-col">
           <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-orange z-10">
             {t('upload.iconLabel', 'APP ICON')}
           </div>
@@ -252,11 +252,11 @@ export default function UploadZone() {
 
             {iconPreview ? (
               /* Icon Preview */
-              <div className="p-2 md:p-3 flex items-center gap-2 md:gap-3">
+              <div className="p-2 md:p-3 flex items-center gap-2 md:gap-3 h-[60px] md:h-[72px]">
                 <img
                   src={iconPreview}
                   alt="App Icon"
-                  className="w-10 h-10 md:w-12 md:h-12 object-contain rounded border border-bp-grid"
+                  className="w-8 h-8 md:w-10 md:h-10 object-contain rounded border border-bp-grid"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] md:text-xs font-mono text-bp-orange truncate">
@@ -281,10 +281,10 @@ export default function UploadZone() {
               /* Upload Prompt */
               <label
                 htmlFor="icon-upload"
-                className="p-3 md:p-4 flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-bp-orange/5 transition-colors"
+                className="p-3 md:p-4 flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-bp-orange/5 transition-colors h-[60px] md:h-[72px]"
               >
-                <div className="w-10 h-10 md:w-12 md:h-12 border border-dashed border-bp-dim rounded flex items-center justify-center text-bp-dim group-hover:border-bp-orange/50 group-hover:text-bp-orange/70 transition-colors">
-                  <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-8 h-8 md:w-10 md:h-10 border border-dashed border-bp-dim rounded flex items-center justify-center text-bp-dim group-hover:border-bp-orange/50 group-hover:text-bp-orange/70 transition-colors">
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
@@ -292,12 +292,13 @@ export default function UploadZone() {
                   <div className="text-[10px] md:text-xs font-mono text-bp-dim group-hover:text-bp-orange/70 transition-colors">
                     {t('upload.iconPlaceholder', 'Optional: Upload custom icon')}
                   </div>
-                  <div className="text-[9px] md:text-[10px] text-bp-dim/60">
-                    PNG / JPG
-                  </div>
                 </div>
               </label>
             )}
+          </div>
+          {/* Helper text to align with App Name */}
+          <div className="mt-1 md:mt-2 text-[9px] md:text-[10px] font-mono text-bp-dim text-right h-4">
+            PNG / JPG &lt; 2MB
           </div>
         </div>
       </div>
@@ -339,6 +340,13 @@ export default function UploadZone() {
           {buildType === 'zip' && <div className="absolute top-0 left-0 w-[2px] h-full md:w-full md:h-[2px] bg-bp-blue" />}
           {t('upload.modeReactZip')}
         </button>
+      </div>
+
+      {/* Mode Description / Supported Formats */}
+      <div className="py-2 px-1 text-[10px] md:text-xs font-mono text-bp-dim">
+        {buildType === 'html' && t('upload.formatInfoA')}
+        {buildType === 'html-paste' && t('upload.formatInfoB')}
+        {buildType === 'zip' && t('upload.formatInfoC')}
       </div>
 
       {/* Main Area - Conditional based on buildType */}

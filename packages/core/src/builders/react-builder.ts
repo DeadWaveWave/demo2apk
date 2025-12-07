@@ -6,6 +6,27 @@ import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
 
+/**
+ * Calculate optimal Node.js memory limit based on container memory.
+ * Reads from CONTAINER_MEMORY_MB environment variable (set in docker-compose).
+ * 
+ * Strategy:
+ * - Reserve 512MB for system, Gradle daemon, and other processes
+ * - Use 60% of remaining memory for Node.js
+ * - Cap at 4GB, floor at 512MB
+ */
+function calculateNodeMemoryLimit(): number {
+  const containerMemMB = parseInt(process.env.CONTAINER_MEMORY_MB || '2048', 10);
+  const reservedMB = 512; // For system + Gradle
+  const availableMB = Math.max(0, containerMemMB - reservedMB);
+
+  // Use 60% of available memory, capped between 512MB and 4GB
+  const targetMB = Math.floor(availableMB * 0.6);
+  const limitMB = Math.max(512, Math.min(4096, targetMB));
+
+  return limitMB;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -237,7 +258,7 @@ function createProgressHeartbeat(
   let timer: NodeJS.Timeout | null = null;
   let currentPercent = startPercent;
   const increment = Math.max(1, Math.floor((endPercent - startPercent) / 10)); // Max 10 increments
-  
+
   return {
     start: () => {
       if (!onProgress) return;
@@ -365,10 +386,18 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       ? ['install', '--legacy-peer-deps']
       : ['install'];
 
+    // Auto-calculate Node.js memory limit based on available system/container memory
+    // Can be overridden via BUILD_NODE_MEMORY environment variable
+    const autoMemoryLimit = calculateNodeMemoryLimit();
+    const nodeMemoryLimit = process.env.BUILD_NODE_MEMORY || String(autoMemoryLimit);
+    onProgress?.(`Memory limit: ${nodeMemoryLimit}MB (auto-detected: ${autoMemoryLimit}MB)`, 26);
+
     const buildEnv = {
       ...process.env,
       NODE_ENV: 'development',
       npm_config_production: 'false',
+      // Limit Node.js heap memory to prevent OOM in memory-constrained environments
+      NODE_OPTIONS: `--max-old-space-size=${nodeMemoryLimit}`,
     };
 
     // Use heartbeat to show progress during long npm install
@@ -390,6 +419,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     const buildHeartbeat = createProgressHeartbeat(onProgress, 'Building React project', 40, 53);
     buildHeartbeat.start();
     try {
+      // buildEnv already has NODE_OPTIONS with memory limit configured
       await execa(packageManager, ['run', 'build'], {
         cwd: projectDir,
         env: buildEnv,
@@ -530,7 +560,7 @@ export default config;
     const apkFileName = taskId ? `${appName}--${taskId}.apk` : `${appName}.apk`;
     const apkDest = path.join(outputDir, apkFileName);
     await fs.copy(apkSource, apkDest);
-    
+
     // Verify the APK file is valid and complete
     const destStats = await fs.stat(apkDest);
     const sourceStats = await fs.stat(apkSource);

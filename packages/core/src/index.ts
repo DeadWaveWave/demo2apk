@@ -34,3 +34,20 @@ export {
   needsViteProjectFix,
   type FixResult,
 } from './utils/react-project-fixer.js';
+
+// Code Detection & Wrapping
+export {
+  detectCodeType,
+  extractAppNameFromCode,
+  isLikelyReactComponent,
+  isLikelyHtmlWithReact,
+  type CodeType,
+  type DetectionResult,
+} from './utils/code-detector.js';
+
+export {
+  wrapReactComponent,
+  createProjectZip,
+  type WrapperOptions,
+  type WrapperResult,
+} from './utils/react-wrapper.js';

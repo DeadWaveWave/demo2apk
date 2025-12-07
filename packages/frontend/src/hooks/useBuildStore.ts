@@ -19,6 +19,7 @@ interface BuildState {
   
   // Actions
   startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => Promise<void>
+  startCodeBuild: (code: string, appName: string, iconFile?: File) => Promise<void>
   restoreFromTaskId: (taskId: string) => Promise<void>
   reset: () => void
 }
@@ -117,6 +118,89 @@ export const useBuildStore = create<BuildState>((set, get) => ({
         progress: 5,
         logs: [
           ...get().logs, 
+          '> UPLOAD COMPLETE.', 
+          `> TASK ID: ${taskId}`, 
+          '> INITIALIZING BUILD SUBSYSTEM...'
+        ],
+      })
+
+      // Poll for status
+      await pollBuildStatus(taskId, set, get)
+
+    } catch (error) {
+      set({ 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'UNKNOWN ERROR',
+        logs: [...get().logs, `[FATAL ERROR] ${error instanceof Error ? error.message : 'UNKNOWN ERROR'}`],
+      })
+    }
+  },
+
+  // Start build from pasted code (with auto-detection)
+  startCodeBuild: async (code: string, appName: string, iconFile?: File) => {
+    set({ 
+      status: 'uploading', 
+      progress: 0, 
+      logs: [],
+      fileName: `${appName}.tsx`,
+      error: null,
+      expiresAt: null,
+      retentionHours: null,
+    })
+
+    try {
+      const formData = new FormData()
+      formData.append('code', code)
+      formData.append('appName', appName)
+      if (iconFile) {
+        formData.append('icon', iconFile)
+      }
+      
+      set({ logs: ['> ANALYZING CODE TYPE...', '> INITIATING UPLOAD SEQUENCE...'] })
+      
+      const response = await fetch('/api/build/code', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        
+        if (response.status === 429) {
+          throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
+        }
+        
+        throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const taskId = data.taskId
+
+      // Save taskId to URL for persistence
+      updateUrlWithTaskId(taskId)
+
+      // Save to build history
+      saveBuildToHistory({
+        taskId,
+        fileName: `${appName}.${data.detectedType === 'react-component' ? 'tsx' : 'html'}`,
+        appName,
+        status: 'building',
+        createdAt: new Date().toISOString(),
+      })
+
+      const detectedTypeMsg = data.detectedType === 'react-component' 
+        ? '> DETECTED: REACT COMPONENT'
+        : data.detectedType === 'html-react'
+        ? '> DETECTED: HTML + REACT (BABEL)'
+        : '> DETECTED: HTML'
+
+      set({ 
+        taskId,
+        status: 'building',
+        progress: 5,
+        logs: [
+          ...get().logs, 
+          detectedTypeMsg,
           '> UPLOAD COMPLETE.', 
           `> TASK ID: ${taskId}`, 
           '> INITIALIZING BUILD SUBSYSTEM...'

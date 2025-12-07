@@ -1,7 +1,8 @@
-import { useCallback, useState, useRef } from 'react'
+import { useCallback, useState, useRef, useEffect, useMemo } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
+import { detectCodeType, getCodeTypeLabel, getCodeTypeColor, type DetectionResult } from '../utils/codeDetector'
 
 type BuildType = 'html' | 'html-paste' | 'zip'
 
@@ -13,8 +14,21 @@ export default function UploadZone() {
   const [iconFile, setIconFile] = useState<File | null>(null)
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
-  const { startBuild } = useBuildStore()
+  const { startBuild, startCodeBuild } = useBuildStore()
   const { t } = useTranslation()
+  
+  // Code type detection result (memoized for performance)
+  const codeDetection: DetectionResult | null = useMemo(() => {
+    if (buildType !== 'html-paste' || !htmlCode.trim()) return null
+    return detectCodeType(htmlCode)
+  }, [buildType, htmlCode])
+  
+  // Auto-fill app name from detected React component name
+  useEffect(() => {
+    if (codeDetection?.appNameHint && !appName) {
+      setAppName(codeDetection.appNameHint)
+    }
+  }, [codeDetection?.appNameHint])
 
   // Max icon size: 2MB
   const MAX_ICON_SIZE = 2 * 1024 * 1024
@@ -56,7 +70,7 @@ export default function UploadZone() {
 
   // Extract app name from filename (remove extension)
   const getAppNameFromFile = (filename: string) => {
-    return filename.replace(/\.(html|htm|zip)$/i, '')
+    return filename.replace(/\.(html|htm|zip|js|jsx|ts|tsx)$/i, '')
   }
 
   // For Mode B (Paste Code), we always need a custom name because there is no filename
@@ -73,31 +87,54 @@ export default function UploadZone() {
     }
   }
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
       const finalAppName = useFileName ? getAppNameFromFile(file.name) : (appName || undefined)
-      startBuild(file, buildType === 'html' ? 'html' : 'zip', finalAppName, iconFile || undefined)
+      
+      if (buildType === 'zip') {
+        // ZIP files go directly to React builder
+        startBuild(file, 'zip', finalAppName, iconFile || undefined)
+        return
+      }
+      
+      // For non-ZIP files, read content and detect type
+      try {
+        const content = await file.text()
+        const detection = detectCodeType(content)
+        
+        // If it's a React component (regardless of file extension), use code endpoint
+        if (detection.type === 'react-component' && detection.confidence >= 50) {
+          const name = finalAppName || detection.appNameHint || 'App'
+          startCodeBuild(content, name, iconFile || undefined)
+        } else {
+          // HTML or HTML-React, use traditional HTML build
+          startBuild(file, 'html', finalAppName, iconFile || undefined)
+        }
+      } catch {
+        // If reading fails, fall back to traditional build
+        startBuild(file, 'html', finalAppName, iconFile || undefined)
+      }
     }
-  }, [buildType, appName, useFileName, iconFile, startBuild])
+  }, [buildType, appName, useFileName, iconFile, startBuild, startCodeBuild])
 
-  const handleHtmlCodeSubmit = useCallback(() => {
-    // Paste mode requires both HTML code and app name
+  const handleHtmlCodeSubmit = useCallback(async () => {
+    // Paste mode requires both code and app name
     if (!htmlCode.trim() || !appName.trim()) return
 
-    // Create a File object from the pasted HTML code
-    // Use the app name as the filename
-    const blob = new Blob([htmlCode], { type: 'text/html' })
-    const file = new File([blob], `${appName.trim()}.html`, { type: 'text/html' })
-
-    // For pasted code, app name is required
-    startBuild(file, 'html', appName.trim(), iconFile || undefined)
-  }, [htmlCode, appName, iconFile, startBuild])
+    // Use the new unified code endpoint that auto-detects type
+    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined)
+  }, [htmlCode, appName, iconFile, startCodeBuild])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: buildType === 'html'
-      ? { 'text/html': ['.html', '.htm'] }
+      ? { 
+          'text/html': ['.html', '.htm'],
+          'text/javascript': ['.js', '.jsx'],
+          'text/typescript': ['.ts', '.tsx'],
+          'application/javascript': ['.js', '.jsx'],
+        }
       : { 'application/zip': ['.zip'] },
     maxFiles: 1,
     maxSize: 30 * 1024 * 1024, // 30MB
@@ -345,8 +382,44 @@ export default function UploadZone() {
           {/* Info Label */}
           <div className="flex justify-between items-center text-xs font-mono text-bp-dim">
             <span>{t('upload.charCount', { count: htmlCode.length.toLocaleString() })}</span>
-            <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
+            <div className="flex items-center gap-2">
+              {/* Code Type Detection Badge */}
+              {codeDetection && codeDetection.confidence > 0 && (
+                <span className={`px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider font-bold ${getCodeTypeColor(codeDetection.type)}`}>
+                  {getCodeTypeLabel(codeDetection.type)}
+                  {codeDetection.confidence >= 50 && ' ✓'}
+                </span>
+              )}
+              <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
+            </div>
           </div>
+          
+          {/* React Component Detection Info */}
+          {codeDetection?.type === 'react-component' && codeDetection.confidence >= 50 && (
+            <div className="border border-green-500/30 bg-green-500/5 p-3 rounded relative">
+              <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-green-500/50" />
+              <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-green-500/50" />
+              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-green-500/50" />
+              <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-green-500/50" />
+              
+              <div className="flex items-start gap-2">
+                <span className="text-green-400 text-base flex-shrink-0">⚛️</span>
+                <div className="text-xs font-mono text-bp-dim space-y-1">
+                  <p className="text-green-400 font-bold">
+                    {t('upload.reactDetected', 'React Component Detected!')}
+                  </p>
+                  <p className="text-bp-text">
+                    {t('upload.reactDetectedDesc', 'Your code will be automatically wrapped into a complete React project with Vite, Tailwind CSS, and all necessary dependencies.')}
+                  </p>
+                  {codeDetection.hints.length > 0 && (
+                    <p className="text-bp-dim/70 text-[10px]">
+                      {codeDetection.hints.slice(0, 3).join(' • ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* File Upload Area */
@@ -387,7 +460,9 @@ export default function UploadZone() {
 
           {/* Spec Label */}
           <div className="absolute bottom-4 right-4 font-mono text-[10px] text-bp-dim bg-bp-dark px-2 border border-bp-grid">
-            {t('upload.maxSizeLabel', { format: buildType.toUpperCase() })}
+            {buildType === 'html' 
+              ? t('upload.maxSizeLabelCode', { formats: 'HTML/JS/JSX/TSX' })
+              : t('upload.maxSizeLabel', { format: 'ZIP' })}
           </div>
         </div>
       )}

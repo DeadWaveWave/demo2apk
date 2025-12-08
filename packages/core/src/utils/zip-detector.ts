@@ -101,8 +101,11 @@ async function readFileFromZip(zipPath: string, filePath: string): Promise<strin
  * Find the project root inside ZIP (handles nested directories)
  */
 function findProjectRoot(entries: FileEntry[]): string {
-  // Get all file paths (not directories)
-  const files = entries.filter(e => !e.isDirectory).map(e => e.path);
+  // Get all file paths (not directories), excluding macOS metadata
+  const files = entries
+    .filter(e => !e.isDirectory)
+    .map(e => e.path)
+    .filter(p => !p.startsWith('__MACOSX/') && !p.includes('/__MACOSX/'));
   
   if (files.length === 0) return '';
   
@@ -262,17 +265,28 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
   }
 
   // Determine project type
-  if (result.hasPackageJson && (result.hasReactDeps || result.hasViteConfig || result.hasBuildScript)) {
-    // React/Vite project - needs npm install && build
+  // Priority 1: Has vite.config → definitely a Vite React project
+  if (result.hasViteConfig && result.hasPackageJson) {
+    result.type = 'react-project';
+    result.entryPoint = packageJsonPath;
+    result.confidence = 95;
+    result.hints.push('Vite config file found - treating as React project');
+  }
+  // Priority 2: Has package.json with React deps or build script
+  else if (result.hasPackageJson && (result.hasReactDeps || result.hasBuildScript)) {
     result.type = 'react-project';
     result.entryPoint = packageJsonPath;
     result.confidence = 90;
     
-    if (result.hasViteConfig) {
-      result.hints.push('Vite config file found');
-      result.confidence = 95;
+    if (result.hasReactDeps) {
+      result.hints.push('React dependencies detected');
     }
-  } else if (result.hasIndexHtml) {
+    if (result.hasBuildScript) {
+      result.hints.push('Build script detected');
+    }
+  } 
+  // Priority 3: Static HTML project
+  else if (result.hasIndexHtml) {
     // Has index.html but no package.json (or no build deps)
     if (result.fileCount === 1 || (result.htmlFiles.length === 1 && result.jsFiles.length === 0 && result.cssFiles.length === 0)) {
       // Single HTML file

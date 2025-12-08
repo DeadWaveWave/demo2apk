@@ -81,6 +81,9 @@ importers:
       fs-extra:
         specifier: ^11.2.0
         version: 11.3.2
+      pinyin-pro:
+        specifier: ^3.22.2
+        version: 3.27.0
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -1690,6 +1693,9 @@ packages:
   pino@10.1.0:
     resolution: {integrity: sha512-0zZC2ygfdqvqK8zJIr1e+wT1T/L+LF6qvqvbzEQ6tiMAoTqEVK9a1K3YRu8HEUvGEvNqZyPJTtb2sNIoTkB83w==}
     hasBin: true
+
+  pinyin-pro@3.27.0:
+    resolution: {integrity: sha512-Osdgjwe7Rm17N2paDMM47yW+jUIUH3+0RGo8QP39ZTLpTaJVDK0T58hOLaMQJbcMmAebVuK2ePunTEVEx1clNQ==}
 
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
@@ -3588,6 +3594,8 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.0
       thread-stream: 3.1.0
+
+  pinyin-pro@3.27.0: {}
 
   pirates@4.0.7: {}
 

@@ -40,7 +40,7 @@ function isTypeScriptCode(code: string): boolean {
     /useState<[^>]+>/,
     /useRef<[^>]+>/,
   ];
-  
+
   return tsPatterns.some(pattern => pattern.test(code));
 }
 
@@ -49,23 +49,23 @@ function isTypeScriptCode(code: string): boolean {
  */
 function extractDependencies(code: string): string[] {
   const deps = new Set<string>();
-  
+
   // Match import statements
   const importRegex = /import\s+(?:[\w\s{},*]+\s+from\s+)?['"]([^'"]+)['"]/g;
   let match;
-  
+
   while ((match = importRegex.exec(code)) !== null) {
     const pkg = match[1];
     // Skip relative imports
     if (!pkg.startsWith('.') && !pkg.startsWith('/')) {
       // Get the package name (handle scoped packages)
-      const pkgName = pkg.startsWith('@') 
+      const pkgName = pkg.startsWith('@')
         ? pkg.split('/').slice(0, 2).join('/')
         : pkg.split('/')[0];
       deps.add(pkgName);
     }
   }
-  
+
   return Array.from(deps);
 }
 
@@ -82,7 +82,7 @@ function usesTailwind(code: string): boolean {
     /className\s*=\s*["'][^"']*\b(sm:|md:|lg:|xl:|2xl:)/,
     /className\s*=\s*["'][^"']*\b(hover:|focus:|active:|disabled:)/,
   ];
-  
+
   return tailwindPatterns.some(pattern => pattern.test(code));
 }
 
@@ -98,29 +98,29 @@ function usesLucide(code: string): boolean {
  */
 export async function wrapReactComponent(options: WrapperOptions): Promise<WrapperResult> {
   const { code, outputDir: customOutputDir } = options;
-  
+
   const isTS = isTypeScriptCode(code);
   const ext = isTS ? 'tsx' : 'jsx';
   const useTailwind = usesTailwind(code);
   const useLucideIcons = usesLucide(code);
-  
+
   // Extract or generate app name
   const extractedName = extractAppNameFromCode(code);
   const appName = options.appName || extractedName || 'App';
-  
+
   // Create output directory
   const outputDir = customOutputDir || path.join(os.tmpdir(), `react-wrap-${Date.now()}`);
   await fs.ensureDir(outputDir);
-  
+
   // Extract dependencies from the code
   const extractedDeps = extractDependencies(code);
-  
+
   // Build package.json dependencies
   const dependencies: Record<string, string> = {
     'react': '^18.2.0',
     'react-dom': '^18.2.0',
   };
-  
+
   // Add extracted dependencies with reasonable versions
   const knownVersions: Record<string, string> = {
     'lucide-react': '^0.344.0',
@@ -133,18 +133,18 @@ export async function wrapReactComponent(options: WrapperOptions): Promise<Wrapp
     'axios': '^1.6.0',
     '@tanstack/react-query': '^5.0.0',
   };
-  
+
   for (const dep of extractedDeps) {
     if (dep !== 'react' && dep !== 'react-dom') {
       dependencies[dep] = knownVersions[dep] || '^0.0.0';
     }
   }
-  
+
   // Force add lucide-react if detected
   if (useLucideIcons && !dependencies['lucide-react']) {
     dependencies['lucide-react'] = knownVersions['lucide-react'];
   }
-  
+
   // Build devDependencies
   const devDependencies: Record<string, string> = {
     'vite': '^5.0.0',
@@ -152,19 +152,19 @@ export async function wrapReactComponent(options: WrapperOptions): Promise<Wrapp
     '@vitejs/plugin-legacy': '^5.0.0',
     'terser': '^5.27.0',
   };
-  
+
   if (isTS) {
     devDependencies['typescript'] = '^5.3.0';
     devDependencies['@types/react'] = '^18.2.0';
     devDependencies['@types/react-dom'] = '^18.2.0';
   }
-  
+
   if (useTailwind) {
     devDependencies['tailwindcss'] = '^3.4.0';
     devDependencies['postcss'] = '^8.4.0';
     devDependencies['autoprefixer'] = '^10.4.0';
   }
-  
+
   // Create package.json
   const packageJson = {
     name: appName.toLowerCase().replace(/\s+/g, '-'),
@@ -178,10 +178,10 @@ export async function wrapReactComponent(options: WrapperOptions): Promise<Wrapp
     dependencies,
     devDependencies,
   };
-  
+
   const packageJsonPath = path.join(outputDir, 'package.json');
   await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
-  
+
   // Create vite.config
   const viteConfig = `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -203,10 +203,10 @@ export default defineConfig({
   },
 });
 `;
-  
+
   const viteConfigPath = path.join(outputDir, 'vite.config.js');
   await fs.writeFile(viteConfigPath, viteConfig, 'utf8');
-  
+
   // Create TypeScript config if needed
   if (isTS) {
     const tsConfig = {
@@ -229,17 +229,20 @@ export default defineConfig({
       },
       include: ['src'],
     };
-    
+
     await fs.writeJson(path.join(outputDir, 'tsconfig.json'), tsConfig, { spaces: 2 });
   }
-  
+
   // Create Tailwind config if needed
   if (useTailwind) {
     const tailwindConfig = `/** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./**/*.{js,ts,jsx,tsx,html}",
+    "!./node_modules/**/*",
+    "!./dist/**/*",
+    "!./build/**/*",
   ],
   theme: {
     extend: {},
@@ -248,7 +251,7 @@ export default {
 };
 `;
     await fs.writeFile(path.join(outputDir, 'tailwind.config.js'), tailwindConfig, 'utf8');
-    
+
     const postcssConfig = `export default {
   plugins: {
     tailwindcss: {},
@@ -258,13 +261,13 @@ export default {
 `;
     await fs.writeFile(path.join(outputDir, 'postcss.config.js'), postcssConfig, 'utf8');
   }
-  
+
   // Create src directory
   const srcDir = path.join(outputDir, 'src');
   await fs.ensureDir(srcDir);
-  
+
   // Create CSS file
-  const cssContent = useTailwind 
+  const cssContent = useTailwind
     ? `@tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -286,13 +289,13 @@ body {
   box-sizing: border-box;
 }
 `;
-  
+
   await fs.writeFile(path.join(srcDir, 'index.css'), cssContent, 'utf8');
-  
+
   // Create App file with the user's code
   const appFilePath = path.join(srcDir, `App.${ext}`);
   await fs.writeFile(appFilePath, code, 'utf8');
-  
+
   // Create main.tsx/jsx (entry point)
   const mainContent = isTS
     ? `import React from 'react';
@@ -317,10 +320,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 `;
-  
+
   const mainFilePath = path.join(srcDir, `main.${ext}`);
   await fs.writeFile(mainFilePath, mainContent, 'utf8');
-  
+
   // Create index.html
   const indexHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -336,10 +339,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </body>
 </html>
 `;
-  
+
   const indexHtmlPath = path.join(outputDir, 'index.html');
   await fs.writeFile(indexHtmlPath, indexHtml, 'utf8');
-  
+
   return {
     projectDir: outputDir,
     indexHtml: indexHtmlPath,
@@ -356,15 +359,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
  */
 export async function createProjectZip(projectDir: string, outputPath: string): Promise<string> {
   const { execa } = await import('execa');
-  
+
   // Create ZIP in the parent directory
   const parentDir = path.dirname(projectDir);
   const projectName = path.basename(projectDir);
-  
+
   await execa('zip', ['-r', outputPath, projectName], {
     cwd: parentDir,
   });
-  
+
   return outputPath;
 }
 

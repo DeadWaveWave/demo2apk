@@ -12,6 +12,7 @@ import {
   createProjectZip,
   detectZipProjectType,
   getZipProjectTypeLabel,
+  generateAppId,
 } from '@demo2apk/core';
 
 interface BuildRouteOptions {
@@ -137,7 +138,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
         filePath = zipPath;
         buildType = 'zip';
-        appId = appId || 'com.demo2apk.reactapp';
+        // Derive default appId from appName so different apps don't share one package ID
+        const effectiveName = appName || 'ReactApp';
+        appId = appId || generateAppId(effectiveName);
 
         logger.info('React component wrapped successfully', {
           taskId,
@@ -267,7 +270,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Use filename as app name if not provided
     const uploadedBaseName = path.parse(zipFile.filename).name;
     appName = appName || uploadedBaseName || 'MyReactApp';
-    appId = appId || 'com.demo2apk.reactapp';
+    // Derive default appId from appName so each project gets its own package ID
+    appId = appId || generateAppId(appName);
 
     const fileSize = zipFile.buffer.length;
 
@@ -454,7 +458,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath = zipPath;
         buildType = 'zip';
         appName = appName || 'ReactApp';
-        appId = appId || 'com.demo2apk.reactapp';
+        // Derive default appId from appName so each wrapped component gets unique package ID
+        appId = appId || generateAppId(appName);
 
         logger.info('React component wrapped successfully', {
           taskId,

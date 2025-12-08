@@ -5,6 +5,7 @@ import { execa, execaCommand } from 'execa';
 import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
+import { generateAppId } from './html-builder.js';
 
 /**
  * Calculate optimal Node.js memory limit based on container memory.
@@ -284,7 +285,8 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
   const {
     zipPath,
     appName = 'MyReactApp',
-    appId = 'com.demo2apk.reactapp',
+    // Default appId is derived from appName to avoid all React APKs sharing one package ID
+    appId = generateAppId(appName),
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,

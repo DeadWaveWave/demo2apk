@@ -30,6 +30,8 @@ const MOCK_BUILD = process.env.MOCK_BUILD === 'true';
 const MOCK_APK_PATH = process.env.MOCK_APK_PATH || './test-assets/mock.apk';
 const BUILDS_DIR = process.env.BUILDS_DIR || path.join(process.cwd(), 'builds');
 const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 10);
+const FILE_CLEANUP_ENABLED = process.env.FILE_CLEANUP_ENABLED !== 'false';
+const FILE_CLEANUP_INTERVAL_MINUTES = parseInt(process.env.FILE_CLEANUP_INTERVAL_MINUTES || '30', 10);
 
 /**
  * Process a build job
@@ -133,7 +135,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
     }
 
     const duration = Date.now() - startTime;
-    
+
     if (result.success) {
       // 获取 APK 文件大小
       let apkSize: number | undefined;
@@ -234,15 +236,22 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// Run cleanup on startup
-cleanupOldBuilds();
+if (FILE_CLEANUP_ENABLED) {
+  // Run cleanup on startup
+  cleanupOldBuilds();
 
-// Schedule periodic cleanup (every 30 minutes)
-setInterval(cleanupOldBuilds, 30 * 60 * 1000);
+  // Schedule periodic cleanup
+  setInterval(cleanupOldBuilds, FILE_CLEANUP_INTERVAL_MINUTES * 60 * 1000);
 
-logger.info('Worker ready', {
-  status: 'waiting_for_jobs',
-  cleanupIntervalMinutes: 30,
-  fileRetentionHours: FILE_RETENTION_HOURS,
-});
+  logger.info('Worker ready', {
+    status: 'waiting_for_jobs',
+    cleanupIntervalMinutes: FILE_CLEANUP_INTERVAL_MINUTES,
+    fileRetentionHours: FILE_RETENTION_HOURS,
+  });
+} else {
+  logger.warn('File cleanup DISABLED via FILE_CLEANUP_ENABLED=false', {
+    status: 'waiting_for_jobs',
+    fileRetentionHours: FILE_RETENTION_HOURS,
+  });
+}
 

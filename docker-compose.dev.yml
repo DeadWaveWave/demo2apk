@@ -34,6 +34,7 @@ services:
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_MAX=100
       - FILE_RETENTION_HOURS=24
+      - CLEANUP_BUILD_ARTIFACTS=false
     volumes:
       - ./packages:/app/packages
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml
@@ -50,6 +51,9 @@ services:
       - NODE_ENV=development
       - MOCK_BUILD=true
       - FILE_RETENTION_HOURS=24
+      - CLEANUP_BUILD_ARTIFACTS=false
+      - FILE_CLEANUP_ENABLED=true
+      - FILE_CLEANUP_INTERVAL_MINUTES=30
     volumes:
       - ./packages:/app/packages
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml

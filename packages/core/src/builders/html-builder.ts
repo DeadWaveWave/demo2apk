@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { pinyin } from 'pinyin-pro';
 import { detectAndroidSdk, setupAndroidEnv, detectCordova } from '../utils/android-sdk.js';
 import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
+import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -444,6 +445,15 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       await fs.remove(tempOfflineDir);
     }
 
+    // Optionally cleanup Cordova work directory (build artifacts)
+    if (shouldCleanupBuildArtifacts()) {
+      try {
+        await fs.remove(workDir);
+      } catch {
+        // Non-fatal – ignore cleanup errors
+      }
+    }
+
     const duration = Date.now() - startTime;
 
     onProgress?.('Build completed!', 100);
@@ -650,6 +660,15 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     const sourceStats = await fs.stat(apkSource);
     if (destStats.size !== sourceStats.size) {
       return { success: false, error: 'APK copy verification failed' };
+    }
+
+    // Optionally cleanup Cordova work directory (build artifacts)
+    if (shouldCleanupBuildArtifacts()) {
+      try {
+        await fs.remove(workDir);
+      } catch {
+        // Non-fatal – ignore cleanup errors
+      }
     }
 
     const duration = Date.now() - startTime;

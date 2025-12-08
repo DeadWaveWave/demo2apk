@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
 import { generateAppId } from './html-builder.js';
+import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 
 /**
  * Calculate optimal Node.js memory limit based on container memory.
@@ -572,6 +573,15 @@ export default config;
     const sourceStats = await fs.stat(apkSource);
     if (destStats.size !== sourceStats.size) {
       return { success: false, error: 'APK copy verification failed - file sizes do not match' };
+    }
+
+    // Optionally cleanup Capacitor work directory (build artifacts)
+    if (shouldCleanupBuildArtifacts()) {
+      try {
+        await fs.remove(workDir);
+      } catch {
+        // Non-fatal – ignore cleanup errors
+      }
     }
 
     const duration = Date.now() - startTime;

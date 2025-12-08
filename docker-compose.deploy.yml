@@ -36,6 +36,7 @@ services:
       - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-1 hour}
       - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
       - MOCK_BUILD=false
+      - CLEANUP_BUILD_ARTIFACTS=${CLEANUP_BUILD_ARTIFACTS:-true}
     volumes:
       - builds:/app/builds
       - uploads:/app/uploads
@@ -68,6 +69,9 @@ services:
       - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
       - CONTAINER_MEMORY_MB=2048
+      - CLEANUP_BUILD_ARTIFACTS=${CLEANUP_BUILD_ARTIFACTS:-true}
+      - FILE_CLEANUP_ENABLED=${FILE_CLEANUP_ENABLED:-true}
+      - FILE_CLEANUP_INTERVAL_MINUTES=${FILE_CLEANUP_INTERVAL_MINUTES:-30}
     volumes:
       - builds:/app/builds
       - uploads:/app/uploads

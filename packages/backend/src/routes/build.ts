@@ -12,8 +12,8 @@ import {
   createProjectZip,
   detectZipProjectType,
   getZipProjectTypeLabel,
-  generateAppId,
 } from '@demo2apk/core';
+import { resolveAppIdentityFromUpload, resolveAppIdentityFromCode } from '../utils/appIdentity.js';
 
 interface BuildRouteOptions {
   config: ServerConfig;
@@ -98,7 +98,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       });
     }
 
-    // Use filename as app name if not provided
+    // Use filename as app name if not provided (for non-React HTML builds)
     const uploadedBaseName = path.parse(htmlFile.filename).name;
     appName = appName || uploadedBaseName || 'MyVibeApp';
 
@@ -126,9 +126,14 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       if (detection.type === 'react-component' && detection.confidence >= 50) {
         logger.info('Wrapping React component from uploaded file', { taskId, appName });
         
+        // Normalize appName / appId for React project
+        const identity = resolveAppIdentityFromUpload(appName, appId, htmlFile.filename, 'ReactApp');
+        appName = identity.appName;
+        appId = identity.appId;
+
         const wrapResult = await wrapReactComponent({
           code: fileContent,
-          appName: appName || 'App',
+          appName,
           outputDir: path.join(os.tmpdir(), `react-wrap-${taskId}`),
         });
 
@@ -138,9 +143,6 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
         filePath = zipPath;
         buildType = 'zip';
-        // Derive default appId from appName so different apps don't share one package ID
-        const effectiveName = appName || 'ReactApp';
-        appId = appId || generateAppId(effectiveName);
 
         logger.info('React component wrapped successfully', {
           taskId,
@@ -267,11 +269,10 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       });
     }
 
-    // Use filename as app name if not provided
-    const uploadedBaseName = path.parse(zipFile.filename).name;
-    appName = appName || uploadedBaseName || 'MyReactApp';
-    // Derive default appId from appName so each project gets its own package ID
-    appId = appId || generateAppId(appName);
+    // Normalize app identity (name + ID) based on upload
+    const identity = resolveAppIdentityFromUpload(appName, appId, zipFile.filename, 'MyReactApp');
+    appName = identity.appName;
+    appId = identity.appId;
 
     const fileSize = zipFile.buffer.length;
 
@@ -444,9 +445,13 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         // Wrap React component into a full project
         logger.info('Wrapping React component into project', { taskId, appName });
         
+        const identity = resolveAppIdentityFromCode(appName, appId, 'ReactApp');
+        appName = identity.appName;
+        appId = identity.appId;
+
         const wrapResult = await wrapReactComponent({
           code: codeContent,
-          appName: appName || 'App',
+          appName,
           outputDir: path.join(os.tmpdir(), `react-wrap-${taskId}`),
         });
 
@@ -457,9 +462,6 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         // Save the ZIP file reference
         filePath = zipPath;
         buildType = 'zip';
-        appName = appName || 'ReactApp';
-        // Derive default appId from appName so each wrapped component gets unique package ID
-        appId = appId || generateAppId(appName);
 
         logger.info('React component wrapped successfully', {
           taskId,

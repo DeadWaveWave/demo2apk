@@ -47,12 +47,12 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
 
     // Determine the actual status - job can be "completed" but build failed
     let actualStatus = jobStatus.status;
-    
+
     // If job completed but build failed, report as failed
     if (jobStatus.status === 'completed' && jobStatus.result && !jobStatus.result.success) {
       actualStatus = 'failed';
     }
-    
+
     const response: Record<string, unknown> = {
       taskId,
       status: actualStatus,
@@ -145,17 +145,18 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
 
     // Get original filename without taskId suffix for user download
     // Internal format: "appName--taskId.apk", user sees: "appName.apk"
+    // taskId is generated via nanoid and can contain a-z, A-Z, 0-9, _ and -
     let filename = path.basename(apkPath);
-    const taskIdMatch = filename.match(/^(.+)--[a-zA-Z0-9]+\.apk$/);
+    const taskIdMatch = filename.match(/^(.+)--[a-zA-Z0-9_-]+\.apk$/);
     if (taskIdMatch) {
       filename = `${taskIdMatch[1]}.apk`;
     }
-    
+
     // Handle non-ASCII filenames (RFC 5987)
     // Provide both ASCII fallback and UTF-8 encoded filename
     const asciiFilename = filename.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
     const encodedFilename = encodeURIComponent(filename);
-    
+
     return reply
       .header('Content-Type', 'application/vnd.android.package-archive')
       .header('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`)

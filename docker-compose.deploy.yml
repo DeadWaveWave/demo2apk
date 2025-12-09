@@ -30,6 +30,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - BUILDS_DIR=/app/builds
       - UPLOADS_DIR=/app/uploads
+      - LOGS_DIR=/app/logs
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-52428800}
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-5}
@@ -66,6 +67,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - BUILDS_DIR=/app/builds
       - UPLOADS_DIR=/app/uploads
+      - LOGS_DIR=/app/logs
       - MOCK_BUILD=false
       - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}

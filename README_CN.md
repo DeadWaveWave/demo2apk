@@ -4,13 +4,13 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Stars](https://img.shields.io/github/stars/DeadWaveWave/demo2apk?style=social)
-![Version](https://img.shields.io/badge/version-2.1.0-green)
+![Version](https://img.shields.io/badge/version-2.2.0-green)
 
 **将你的 Vibe Coding 创意瞬间转化为可运行的 Android App。**
 
-> 💡 **使用场景**：当你在 **Gemini**, **ChatGPT**, **DeepSeek**, **Qwen** 等平台构建了自己的 demo，想要将其下载到自己的手机上时，可以用该项目非常便捷地将文件打包成 APK 安装使用。不要随意接受别人的 APK 文件，这可能存在安全风险！
+Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是从 Gemini、ChatGPT、DeepSeek 等 AI 平台生成了一个绝妙的 Demo，还是完成了一个复杂的前端项目，只需上传文件，我们就能立刻为你生成可安装的 APK。无需配置复杂的 Android 开发环境，让你的创意触手可及。
 
-Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是有了一个绝妙的 HTML 原型，还是完成了一个 React 前端项目，只需上传文件，我们就能立刻为你生成可安装的 APK。无需配置复杂的 Android 开发环境，让你的创意触手可及。
+> 不要随意接受别人的 APK 文件，这可能存在安全风险！
 
 ## 🌐 免费公益站点
 
@@ -29,12 +29,16 @@ Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是�
 ## ✨ 核心特性
 
 *   **🎨 Web 界面支持**：沉浸式体验构建过程，支持**暗黑工程蓝图风格**。
-*   **✏️ 个性化定制**：支持设置**自定义应用名称**和上传**应用图标**。
+*   **✏️ 个性化定制**：支持设置**自定义应用名称**、**版本号**和上传**应用图标**。
 *   **📋 构建历史记录**：自动保存最近构建记录，支持刷新页面后**自动恢复**构建状态。
+*   **🧠 智能识别引擎**：自动检测文件类型（HTML/React/ZIP）并匹配最佳构建策略，无需人工干预。
 *   **⏳ 智能排队系统**：支持多任务并发控制与排队等待，实时显示队列位置。
 *   **🔗 便捷分享**：构建完成后自动生成可分享的下载链接。
 *   **⚡️ 极速构建**：优化后的云端流水线，分分钟交付 APK。
-*   **🌐 全栈支持**：完美支持单页 HTML、React、Vite、Next.js 等主流前端技术栈。
+*   **🌐 灵活构建模式**：
+    *   **单文件模式**：支持上传 `.html`, `.js`, `.jsx`, `.ts`, `.tsx`，自动识别 React 组件并包装。
+    *   **代码粘贴模式**：直接粘贴代码文本，智能识别 HTML 或 React/JS 代码。
+    *   **ZIP 压缩包模式**：智能区分 **React/Vite 项目**（执行 npm 构建）与 **HTML 多文件项目**（直接打包）。
 *   **🧠 智能离线**：自动处理 CDN 资源和 JSX 编译，确保 App 在离线环境下流畅运行。
 *   **🛡️ 智能限流**：合理的资源分配策略，支持开发模式下关闭限流。
 *   **🧹 自动清理**：构建产物保留 2 小时后自动清理，保护隐私并节省空间。
@@ -128,10 +132,19 @@ curl -X POST http://localhost:3000/api/build/html \
 # 先将项目打包为 ZIP
 zip -r test-react-app.zip test-react-app/
 
-# 上传构建
+# 上传构建（自动识别项目类型）
 curl -X POST http://localhost:3000/api/build/zip \
   -F "file=@test-react-app.zip" \
   -F "appName=TestReactApp"
+```
+
+**代码粘贴构建：**
+
+```bash
+# 上传原始代码 (HTML/JS/React)
+curl -X POST http://localhost:3000/api/build/code \
+  -F "code=<export default function App() { return <h1>Hello</h1> }" \
+  -F "appName=MyReactApp"
 ```
 
 更多 API 详情请参阅 [API 文档](docs/API.md)。
@@ -160,13 +173,20 @@ RATE_LIMIT_MAX=10
 为了节省存储空间并保护用户数据：
 
 *   **保留时间**：构建生成的 APK 和临时文件将在 **2 小时** 后自动删除。
-*   **清理机制**：后台 Worker 每 30 分钟执行一次清理扫描。
+*   **清理机制**：后台 Worker 每 30 分钟执行一次清理扫描（可配置）。
 
 可以通过环境变量修改：
 
 ```bash
 # 文件保留时间 (小时)
 FILE_RETENTION_HOURS=2
+
+# 是否在每次构建后清理 Cordova/Capacitor 临时工程目录
+CLEANUP_BUILD_ARTIFACTS=true
+
+# Worker 端是否定期清理 BUILDS_DIR 中过期的 APK / 构建产物
+FILE_CLEANUP_ENABLED=true
+FILE_CLEANUP_INTERVAL_MINUTES=30
 ```
 
 ### 并发与排队 (Concurrency)

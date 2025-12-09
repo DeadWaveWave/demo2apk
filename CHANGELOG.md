@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2025-12-09
+
+### 🚀 Features (新特性)
+
+- **App Version Support (版本号支持)**:
+  - Added support for specifying `appVersion` (e.g., 1.0.0) during upload.
+  - Defaults to '1.0.0' if not provided.
+- **Structured Logging (结构化日志)**:
+  - Implemented JSONL logging format for better observability.
+  - Added `log:stats` script for analyzing log statistics.
+- **Enhanced App ID Generation (增强的 App ID 生成)**:
+  - Improved `appId` generation with pinyin support for non-ASCII names.
+  - Changed default prefix to `com.demo2apk` and ensured unique package IDs.
+- **Multi-file HTML Support (多文件 HTML 支持)**:
+  - Automatic detection of multi-file HTML projects in ZIP archives.
+  - No build step required for HTML projects, direct packaging.
+- **React Project Fixer (React 项目修复)**:
+  - Enhanced compatibility fixes including CSS import normalization and CDN resource removal.
+- **Guide Section (新手引导)**:
+  - Added visual guide component for project uploads.
+
+### 🐛 Fixes (修复)
+
+- **Filename Handling**: Updated task ID regex to allow underscores and hyphens.
+- **Cleanup Configuration**: Added periodic cleanup of old builds and configurable retention.
+
 ## [2.1.0] - 2025-12-05
 
 ### 🚀 Features (新特性)

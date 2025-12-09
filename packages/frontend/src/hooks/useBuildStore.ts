@@ -18,8 +18,8 @@ interface BuildState {
   isRestoring: boolean
   
   // Actions
-  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => Promise<void>
-  startCodeBuild: (code: string, appName: string, iconFile?: File) => Promise<void>
+  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string) => Promise<void>
+  startCodeBuild: (code: string, appName: string, iconFile?: File, appVersion?: string) => Promise<void>
   restoreFromTaskId: (taskId: string) => Promise<void>
   reset: () => void
 }
@@ -55,7 +55,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   queueTotal: null,
   isRestoring: false,
 
-  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File) => {
+  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string) => {
     set({ 
       status: 'uploading', 
       progress: 0, 
@@ -75,6 +75,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       }
       if (iconFile) {
         formData.append('icon', iconFile)
+      }
+      if (appVersion) {
+        formData.append('appVersion', appVersion)
       }
 
       const uploadUrl = type === 'html' ? '/api/build/html' : '/api/build/zip'
@@ -137,7 +140,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   },
 
   // Start build from pasted code (with auto-detection)
-  startCodeBuild: async (code: string, appName: string, iconFile?: File) => {
+  startCodeBuild: async (code: string, appName: string, iconFile?: File, appVersion?: string) => {
     set({ 
       status: 'uploading', 
       progress: 0, 
@@ -154,6 +157,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       formData.append('appName', appName)
       if (iconFile) {
         formData.append('icon', iconFile)
+      }
+      if (appVersion) {
+        formData.append('appVersion', appVersion)
       }
       
       set({ logs: ['> ANALYZING CODE TYPE...', '> INITIATING UPLOAD SEQUENCE...'] })

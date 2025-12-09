@@ -9,6 +9,8 @@ type BuildType = 'html' | 'html-paste' | 'zip'
 export default function UploadZone() {
   const [buildType, setBuildType] = useState<BuildType>('html')
   const [appName, setAppName] = useState('')
+  const [appVersion, setAppVersion] = useState('1.0.0') // Default version
+  const [versionError, setVersionError] = useState<string | null>(null)
   const [htmlCode, setHtmlCode] = useState('')
   const [useFileName, setUseFileName] = useState(true) // Default: use filename as app name
   const [iconFile, setIconFile] = useState<File | null>(null)
@@ -73,6 +75,58 @@ export default function UploadZone() {
     return filename.replace(/\.(html|htm|zip|js|jsx|ts|tsx)$/i, '')
   }
 
+  // Validate version format: must be x.x.x (three numbers separated by exactly two dots)
+  const validateVersion = (version: string): boolean => {
+    if (!version.trim()) return true // Empty is allowed (will use default)
+    // Must match pattern: one or more digits, dot, one or more digits, dot, one or more digits
+    // Exactly two dots, no more, no less
+    const versionRegex = /^\d+\.\d+\.\d+$/
+    return versionRegex.test(version.trim())
+  }
+
+  // Handle version input change with validation
+  const handleVersionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    
+    // Only allow digits and dots
+    let sanitized = value.replace(/[^\d.]/g, '')
+    
+    // Prevent multiple consecutive dots
+    sanitized = sanitized.replace(/\.{2,}/g, '.')
+    
+    // Prevent starting or ending with a dot
+    if (sanitized.startsWith('.')) {
+      sanitized = sanitized.substring(1)
+    }
+    if (sanitized.endsWith('.')) {
+      sanitized = sanitized.substring(0, sanitized.length - 1)
+    }
+    
+    // Limit dots to maximum 2 (for x.x.x format)
+    const dotCount = (sanitized.match(/\./g) || []).length
+    if (dotCount > 2) {
+      // Keep only first two dots
+      const parts = sanitized.split('.')
+      sanitized = parts.slice(0, 3).join('.')
+    }
+    
+    // Limit to reasonable length (e.g., "999.999.999" = 11 chars)
+    if (sanitized.length <= 11) {
+      setAppVersion(sanitized)
+      
+      // Validate format only if user has typed something
+      if (sanitized) {
+        if (!validateVersion(sanitized)) {
+          setVersionError(t('upload.versionFormatError', '格式错误：必须是 x.x.x（如 1.0.0）'))
+        } else {
+          setVersionError(null)
+        }
+      } else {
+        setVersionError(null)
+      }
+    }
+  }
+
   // For Mode B (Paste Code), we always need a custom name because there is no filename
   const isPasteMode = buildType === 'html-paste'
 
@@ -92,9 +146,16 @@ export default function UploadZone() {
       const file = acceptedFiles[0]
       const finalAppName = useFileName ? getAppNameFromFile(file.name) : (appName || undefined)
       
+      // Validate version before proceeding
+      const finalVersion = appVersion.trim() || '1.0.0'
+      if (!validateVersion(finalVersion)) {
+        setVersionError(t('upload.versionFormatError', '格式错误：必须是 x.x.x（如 1.0.0）'))
+        return
+      }
+      
       if (buildType === 'zip') {
         // ZIP files go directly to React builder
-        startBuild(file, 'zip', finalAppName, iconFile || undefined)
+        startBuild(file, 'zip', finalAppName, iconFile || undefined, finalVersion)
         return
       }
       
@@ -106,25 +167,32 @@ export default function UploadZone() {
         // If it's a React component (regardless of file extension), use code endpoint
         if (detection.type === 'react-component' && detection.confidence >= 50) {
           const name = finalAppName || detection.appNameHint || 'App'
-          startCodeBuild(content, name, iconFile || undefined)
+          startCodeBuild(content, name, iconFile || undefined, finalVersion)
         } else {
           // HTML or HTML-React, use traditional HTML build
-          startBuild(file, 'html', finalAppName, iconFile || undefined)
+          startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion)
         }
       } catch {
         // If reading fails, fall back to traditional build
-        startBuild(file, 'html', finalAppName, iconFile || undefined)
+        startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion)
       }
     }
-  }, [buildType, appName, useFileName, iconFile, startBuild, startCodeBuild])
+  }, [buildType, appName, useFileName, iconFile, appVersion, startBuild, startCodeBuild])
 
   const handleHtmlCodeSubmit = useCallback(async () => {
     // Paste mode requires both code and app name
     if (!htmlCode.trim() || !appName.trim()) return
 
+    // Validate version before proceeding
+    const finalVersion = appVersion.trim() || '1.0.0'
+    if (!validateVersion(finalVersion)) {
+      setVersionError(t('upload.versionFormatError', '格式错误：必须是 x.x.x（如 1.0.0）'))
+      return
+    }
+
     // Use the new unified code endpoint that auto-detects type
-    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined)
-  }, [htmlCode, appName, iconFile, startCodeBuild])
+    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined, finalVersion)
+  }, [htmlCode, appName, iconFile, appVersion, startCodeBuild, t])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -145,7 +213,7 @@ export default function UploadZone() {
   return (
     <div className="space-y-4 md:space-y-8">
       {/* Parameter Configuration Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
         {/* App Name Input (Primary Config) */}
         <div className="md:col-span-2 relative group">
           <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-blue z-10">
@@ -225,6 +293,63 @@ export default function UploadZone() {
               <span className="text-bp-blue cursor-pointer hover:underline hidden md:inline" onClick={() => setUseFileName(false)}>
                 {t('upload.clickToEdit')}
               </span>
+            )}
+          </div>
+        </div>
+
+        {/* App Version Input */}
+        <div className="relative group flex flex-col">
+          <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-purple z-10">
+            {t('upload.versionLabel', 'VERSION')}
+          </div>
+          <div className={`relative border transition-colors ${
+            versionError 
+              ? 'border-red-500/50 hover:border-red-500/70' 
+              : 'border-bp-grid hover:border-bp-purple/50'
+          }`}>
+            {/* Corner decorations */}
+            <div className={`absolute top-0 left-0 w-2 h-2 border-t border-l ${
+              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+            }`} />
+            <div className={`absolute top-0 right-0 w-2 h-2 border-t border-r ${
+              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+            }`} />
+            <div className={`absolute bottom-0 left-0 w-2 h-2 border-b border-l ${
+              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+            }`} />
+            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r ${
+              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+            }`} />
+
+            <input
+              type="text"
+              value={appVersion}
+              onChange={handleVersionChange}
+              onBlur={() => {
+                // Validate on blur and set default if empty
+                if (!appVersion.trim()) {
+                  setAppVersion('1.0.0')
+                  setVersionError(null)
+                } else if (!validateVersion(appVersion)) {
+                  setVersionError(t('upload.versionFormatError', '格式错误：必须是 x.x.x（如 1.0.0）'))
+                } else {
+                  setVersionError(null)
+                }
+              }}
+              placeholder="1.0.0"
+              className={`w-full bg-bp-dark/50 p-3 md:p-4 font-mono text-sm md:text-lg focus:outline-none transition-colors placeholder-bp-purple/30 h-[60px] md:h-[72px] ${
+                versionError
+                  ? 'border-red-500/50 text-red-400 focus:border-red-500 focus:bg-red-500/5'
+                  : 'border-bp-purple/50 text-bp-purple focus:border-bp-purple focus:bg-bp-purple/5'
+              }`}
+            />
+          </div>
+          {/* Helper text / Error message */}
+          <div className="mt-1 md:mt-2 text-[9px] md:text-[10px] font-mono text-right h-4">
+            {versionError ? (
+              <span className="text-red-400">{versionError}</span>
+            ) : (
+              <span className="text-bp-dim">{t('upload.versionHelper', '默认: 1.0.0')}</span>
             )}
           </div>
         </div>

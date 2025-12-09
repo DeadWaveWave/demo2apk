@@ -25,6 +25,7 @@ export interface HtmlBuildOptions {
   htmlPath: string;
   appName?: string;
   appId?: string;
+  appVersion?: string;  // App version (e.g., "1.0.0")
   outputDir?: string;
   skipOfflineify?: boolean;
   iconPath?: string;  // Custom icon path (optional)
@@ -37,6 +38,7 @@ export interface HtmlProjectBuildOptions {
   projectRoot?: string;  // Root directory inside ZIP (if nested)
   appName?: string;
   appId?: string;
+  appVersion?: string;  // App version (e.g., "1.0.0")
   outputDir?: string;
   iconPath?: string;
   taskId?: string;
@@ -290,6 +292,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     htmlPath,
     appName = 'MyVibeApp',
     appId = generateAppId(appName),
+    appVersion = '1.0.0',
     outputDir = path.join(process.cwd(), 'builds'),
     skipOfflineify = false,
     iconPath,
@@ -364,6 +367,26 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     // Inject app icon (custom or default)
     onProgress?.('Injecting app icon...', 42);
     await injectIcon(workDir, iconPath, onProgress, 42);
+
+    // Update config.xml with app version
+    onProgress?.('Setting app version...', 43);
+    const configXmlPath = path.join(workDir, 'config.xml');
+    if (await fs.pathExists(configXmlPath)) {
+      let configContent = await fs.readFile(configXmlPath, 'utf8');
+      // Update version attribute in widget tag
+      configContent = configContent.replace(
+        /(<widget[^>]*version=")[^"]*(")/,
+        `$1${appVersion}$2`
+      );
+      // If version attribute doesn't exist, add it
+      if (!configContent.includes('version="')) {
+        configContent = configContent.replace(
+          /(<widget[^>]*)(>)/,
+          `$1 version="${appVersion}"$2`
+        );
+      }
+      await fs.writeFile(configXmlPath, configContent);
+    }
 
     onProgress?.('Preparing web resources...', 45);
 
@@ -484,6 +507,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     projectRoot = '',
     appName = 'MyVibeApp',
     appId = generateAppId(appName),
+    appVersion = '1.0.0',
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,
@@ -532,7 +556,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     } else {
       // Auto-detect: look for index.html
       const entries = await fs.readdir(extractDir, { withFileTypes: true });
-      
+
       // Check if index.html is at root
       if (await fs.pathExists(path.join(extractDir, 'index.html'))) {
         projectDir = extractDir;
@@ -592,20 +616,40 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     onProgress?.('Injecting app icon...', 42);
     await injectIcon(cordovaDir, iconPath, onProgress, 42);
 
+    // Update config.xml with app version
+    onProgress?.('Setting app version...', 43);
+    const configXmlPath = path.join(cordovaDir, 'config.xml');
+    if (await fs.pathExists(configXmlPath)) {
+      let configContent = await fs.readFile(configXmlPath, 'utf8');
+      // Update version attribute in widget tag
+      configContent = configContent.replace(
+        /(<widget[^>]*version=")[^"]*(")/,
+        `$1${appVersion}$2`
+      );
+      // If version attribute doesn't exist, add it
+      if (!configContent.includes('version="')) {
+        configContent = configContent.replace(
+          /(<widget[^>]*)(>)/,
+          `$1 version="${appVersion}"$2`
+        );
+      }
+      await fs.writeFile(configXmlPath, configContent);
+    }
+
     onProgress?.('Copying web resources...', 50);
 
     // Clear www and copy all project files
     const wwwDir = path.join(cordovaDir, 'www');
     await fs.emptyDir(wwwDir);
-    
+
     // Copy all files from project directory
     await fs.copy(projectDir, wwwDir, {
       filter: (src) => {
         // Skip node_modules and hidden files
         const relativePath = path.relative(projectDir, src);
-        return !relativePath.includes('node_modules') && 
-               !path.basename(src).startsWith('.') &&
-               !relativePath.includes('__MACOSX');
+        return !relativePath.includes('node_modules') &&
+          !path.basename(src).startsWith('.') &&
+          !relativePath.includes('__MACOSX');
       },
     });
 
@@ -695,13 +739,13 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
  */
 async function findHtmlFiles(dir: string): Promise<string[]> {
   const htmlFiles: string[] = [];
-  
+
   async function scan(currentDir: string) {
     const entries = await fs.readdir(currentDir, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
-      
+
       if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
         await scan(fullPath);
       } else if (entry.isFile()) {
@@ -712,7 +756,7 @@ async function findHtmlFiles(dir: string): Promise<string[]> {
       }
     }
   }
-  
+
   await scan(dir);
   return htmlFiles;
 }

@@ -22,6 +22,16 @@ interface BuildRouteOptions {
 interface BuildRequestBody {
   appName?: string;
   appId?: string;
+  appVersion?: string;
+}
+
+/**
+ * Validate version format: must be x.x.x (three numbers separated by exactly two dots)
+ */
+function validateVersion(version: string): boolean {
+  if (!version || !version.trim()) return true; // Empty is allowed (will use default)
+  const versionRegex = /^\d+\.\d+\.\d+$/;
+  return versionRegex.test(version.trim());
 }
 
 export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify, options) => {
@@ -56,6 +66,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let iconFile: { buffer: Buffer; filename: string } | null = null;
     let appName = '';
     let appId: string | undefined;
+    let appVersion: string | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -75,6 +86,18 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
           appName = String(part.value || '').trim();
         } else if (part.fieldname === 'appId') {
           appId = String(part.value || '').trim() || undefined;
+        } else if (part.fieldname === 'appVersion') {
+          const versionValue = String(part.value || '').trim();
+          if (versionValue) {
+            // Validate version format
+            if (!validateVersion(versionValue)) {
+              return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+              });
+            }
+            appVersion = versionValue;
+          }
         }
       }
     }
@@ -180,6 +203,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath,
         appName,
         appId,
+        appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
@@ -230,6 +254,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let iconFile: { buffer: Buffer; filename: string } | null = null;
     let appName = '';
     let appId: string | undefined;
+    let appVersion: string | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -249,6 +274,18 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
           appName = String(part.value || '').trim();
         } else if (part.fieldname === 'appId') {
           appId = String(part.value || '').trim() || undefined;
+        } else if (part.fieldname === 'appVersion') {
+          const versionValue = String(part.value || '').trim();
+          if (versionValue) {
+            // Validate version format
+            if (!validateVersion(versionValue)) {
+              return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+              });
+            }
+            appVersion = versionValue;
+          }
         }
       }
     }
@@ -350,6 +387,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath,
         appName,
         appId,
+        appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
@@ -404,6 +442,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let iconFile: { buffer: Buffer; filename: string } | null = null;
     let appName = '';
     let appId: string | undefined;
+    let appVersion: string | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -424,6 +463,18 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
           appName = String(part.value || '').trim();
         } else if (part.fieldname === 'appId') {
           appId = String(part.value || '').trim() || undefined;
+        } else if (part.fieldname === 'appVersion') {
+          const versionValue = String(part.value || '').trim();
+          if (versionValue) {
+            // Validate version format
+            if (!validateVersion(versionValue)) {
+              return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+              });
+            }
+            appVersion = versionValue;
+          }
         }
       }
     }
@@ -517,6 +568,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         filePath,
         appName,
         appId,
+        appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),

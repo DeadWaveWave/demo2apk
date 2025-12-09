@@ -139,6 +139,7 @@ export interface ReactBuildOptions {
   zipPath: string;
   appName?: string;
   appId?: string;
+  appVersion?: string;  // App version (e.g., "1.0.0")
   outputDir?: string;
   iconPath?: string;  // Custom icon path (optional)
   taskId?: string;    // Task ID for unique file naming (prevents concurrent build conflicts)
@@ -288,6 +289,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     appName = 'MyReactApp',
     // Default appId is derived from appName to avoid all React APKs sharing one package ID
     appId = generateAppId(appName),
+    appVersion = '1.0.0',
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,
@@ -322,7 +324,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
 
     // Find project root (directory containing package.json)
     let projectDir = workDir;
-    const packageJsonPath = path.join(workDir, 'package.json');
+    let packageJsonPath = path.join(workDir, 'package.json');
 
     if (!(await fs.pathExists(packageJsonPath))) {
       // Search for package.json in subdirectories
@@ -332,15 +334,21 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
           const subPkgPath = path.join(workDir, entry.name, 'package.json');
           if (await fs.pathExists(subPkgPath)) {
             projectDir = path.join(workDir, entry.name);
+            packageJsonPath = subPkgPath;
             break;
           }
         }
       }
     }
 
-    if (!(await fs.pathExists(path.join(projectDir, 'package.json')))) {
+    if (!(await fs.pathExists(packageJsonPath))) {
       return { success: false, error: 'No package.json found in the ZIP archive' };
     }
+
+    // Update package.json with app version
+    const packageJson = await fs.readJson(packageJsonPath);
+    packageJson.version = appVersion;
+    await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
 
     onProgress?.('Analyzing project...', 15);
 

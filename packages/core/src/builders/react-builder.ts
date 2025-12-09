@@ -296,6 +296,44 @@ function createProgressHeartbeat(
   };
 }
 
+/**
+ * Patch app/build.gradle to avoid Kotlin stdlib duplicate-class errors.
+ * Some dependency trees pull in both kotlin-stdlib and the older
+ * kotlin-stdlib-jdk7/jdk8 artifacts, which causes :app:checkDebugDuplicateClasses
+ * to fail. We globally exclude the legacy JDK7/8 modules here.
+ */
+async function patchKotlinDuplicateClasses(
+  androidDir: string,
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
+): Promise<void> {
+  const appBuildGradle = path.join(androidDir, 'app', 'build.gradle');
+  if (!(await fs.pathExists(appBuildGradle))) {
+    return;
+  }
+
+  let content = await fs.readFile(appBuildGradle, 'utf8');
+
+  // Idempotency: only patch once
+  if (content.includes('Demo2APK_kotlin_dedup_marker')) {
+    return;
+  }
+
+  const patch = `
+
+// Added by Demo2APK_kotlin_dedup_marker to avoid Kotlin stdlib duplicate classes
+configurations.configureEach {
+    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"
+    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"
+}
+`;
+
+  content += patch;
+  await fs.writeFile(appBuildGradle, content, 'utf8');
+
+  onProgress?.('Adjusted Gradle config to avoid Kotlin stdlib duplicates', progressPercent);
+}
+
 export async function buildReactToApk(options: ReactBuildOptions): Promise<BuildResult> {
   const startTime = Date.now();
   const {
@@ -544,6 +582,9 @@ export default config;
     // ship an incomplete wrapper, which would cause "GradleWrapperMain not found".
     onProgress?.('Setting up Gradle...', 78);
     await ensureGradleWrapper(androidDir, onProgress, 78);
+
+    // Avoid Kotlin stdlib duplicate-class errors by excluding legacy JDK7/8 artifacts.
+    await patchKotlinDuplicateClasses(androidDir, onProgress, 79);
 
     // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
     // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,

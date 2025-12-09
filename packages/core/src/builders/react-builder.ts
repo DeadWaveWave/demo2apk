@@ -5,7 +5,7 @@ import { execa, execaCommand } from 'execa';
 import sharp from 'sharp';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
-import { generateAppId } from './html-builder.js';
+import { generateAppId, ensureGradleWrapper } from './html-builder.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 
 /**
@@ -507,6 +507,11 @@ export default config;
     onProgress?.('Injecting app icon...', 75);
     const androidDir = path.join(projectDir, 'android');
     await injectIconCapacitor(androidDir, iconPath, onProgress, 75);
+
+    // Ensure Gradle wrapper exists (script + wrapper JAR). Some templates may
+    // ship an incomplete wrapper, which would cause "GradleWrapperMain not found".
+    onProgress?.('Setting up Gradle...', 78);
+    await ensureGradleWrapper(androidDir, onProgress, 78);
 
     // Guard against Capacitor generating a pnpm-style path while using npm/yarn.
     // If the generated capacitor.settings.gradle points to a non-existent .pnpm path,

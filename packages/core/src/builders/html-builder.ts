@@ -236,16 +236,22 @@ export function prepareHtmlForCordova(htmlContent: string): string {
 /**
  * Download and setup Gradle wrapper
  * Note: Gradle is cached in ~/.gradle/wrapper/dists (standard Gradle cache location)
- * This ensures Docker volume mounting gradle-cache:/root/.gradle works correctly
+ * This ensures Docker volume mounting gradle-cache:/root/.gradle works correctly.
+ *
+ * Exported so React builder can reuse the same logic.
  */
-async function ensureGradleWrapper(
+export async function ensureGradleWrapper(
   androidDir: string,
   onProgress?: (message: string, percent?: number) => void,
   progressPercent?: number
 ): Promise<void> {
   const gradlewPath = path.join(androidDir, 'gradlew');
+  const wrapperJarPath = path.join(androidDir, 'gradle', 'wrapper', 'gradle-wrapper.jar');
 
-  if (await fs.pathExists(gradlewPath)) {
+  // If both the wrapper script and JAR exist, we assume the wrapper is ready.
+  // Some templates may ship gradlew without the wrapper JAR; in that case we
+  // need to regenerate the wrapper to avoid "GradleWrapperMain not found" errors.
+  if (await fs.pathExists(gradlewPath) && await fs.pathExists(wrapperJarPath)) {
     onProgress?.('Gradle wrapper already exists', progressPercent);
     return;
   }

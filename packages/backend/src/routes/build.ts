@@ -294,19 +294,29 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         { buildsDir: config.buildsDir }
       );
 
-      // Detect ZIP content type
-      const zipDetection = await detectZipProjectType(filePath);
+    // Detect ZIP content type
+    const zipDetection = await detectZipProjectType(filePath);
       
-      logger.info('ZIP content type detected', {
-        taskId,
-        projectType: zipDetection.type,
-        confidence: zipDetection.confidence,
-        hints: zipDetection.hints,
-        projectRoot: zipDetection.projectRoot,
-        hasPackageJson: zipDetection.hasPackageJson,
-        hasIndexHtml: zipDetection.hasIndexHtml,
-        fileCount: zipDetection.fileCount,
-      });
+    // 精简版：生产环境主要关注类型与置信度
+    logger.info('ZIP content type detected', {
+      taskId,
+      appName,
+      fileName: zipFile.filename,
+      fileSize,
+      projectType: zipDetection.type,
+      confidence: zipDetection.confidence,
+      hasIcon: !!iconFile,
+    });
+
+    // 详细调试信息仅在需要时查看（debug 级别）
+    logger.debug('ZIP content analysis details', {
+      taskId,
+      projectRoot: zipDetection.projectRoot,
+      hasPackageJson: zipDetection.hasPackageJson,
+      hasIndexHtml: zipDetection.hasIndexHtml,
+      fileCount: zipDetection.fileCount,
+      hints: zipDetection.hints,
+    });
 
       // Determine build type based on detection
       let buildType: 'zip' | 'html-project';
@@ -428,12 +438,19 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Detect code type
     const detection = detectCodeType(codeContent);
     
+    // 精简版：只记录核心信息
     logger.info('Code received for analysis', {
       taskId,
       appName,
       codeLength: codeContent.length,
       detectedType: detection.type,
       confidence: detection.confidence,
+      hasIcon: !!iconFile,
+    });
+
+    // 详细检测线索放到 debug，避免污染正常日志
+    logger.debug('Code detection hints', {
+      taskId,
       hints: detection.hints,
     });
 

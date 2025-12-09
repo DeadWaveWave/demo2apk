@@ -14,7 +14,8 @@
     "start": "node dist/index.js",
     "worker": "node dist/worker.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "log:stats": "node dist/scripts/logStats.js"
   },
   "dependencies": {
     "@demo2apk/core": "workspace:*",

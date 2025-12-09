@@ -1,5 +1,6 @@
 import { FastifyBaseLogger } from 'fastify';
 import { nanoid } from 'nanoid';
+import { appendLog } from './logPersistence.js';
 
 /**
  * 常用 HTTP 状态码描述
@@ -28,6 +29,8 @@ export enum LogLevel {
  * 日志上下文接口
  */
 export interface LogContext {
+  // 组件信息（用于区分 api / worker / 其他）
+  component?: 'api' | 'worker' | string;
   // 追踪信息
   traceId?: string;
   taskId?: string;
@@ -131,6 +134,9 @@ export class Logger {
   private log(level: LogLevel, message: string, extra?: LogContext, error?: Error): void {
     const entry = this.formatLog(level, message, extra, error);
     const logLine = this.toLogLine(entry);
+
+    // 尝试将完整结构化日志写入本地 JSONL 文件（异步且失败不会中断主流程）
+    void appendLog(entry);
 
     // 如果有 Fastify logger，使用它（用于 API 服务）
     if (this.fastifyLogger) {

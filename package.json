@@ -17,7 +17,10 @@
     "test:e2e": "./scripts/test-e2e.sh",
     "frontend": "pnpm --filter @demo2apk/frontend dev",
     "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules",
-    "offlineify": "node packages/core/dist/utils/offlineify.js"
+    "offlineify": "node packages/core/dist/utils/offlineify.js",
+    "log:stats": "pnpm --filter @demo2apk/backend log:stats",
+    "log:stats:types": "pnpm --filter @demo2apk/backend log:stats -- --types",
+    "log:stats:apps": "pnpm --filter @demo2apk/backend log:stats -- --apps"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

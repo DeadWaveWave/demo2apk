@@ -152,15 +152,28 @@ ${iconConfigs}
 
 /**
  * Sanitize a string to be safe for use as a directory name.
- * Replaces non-ASCII characters, spaces, and special characters with underscores.
- * This prevents issues with Java/Gradle on systems with POSIX locale.
+ * - Convert non-ASCII (e.g., Chinese) to pinyin (same strategy as generateAppId)
+ * - Then strip to ASCII letters/numbers with dashes for readability
+ * This prevents Java/Gradle path encoding issues inside containers.
  */
 function sanitizeDirName(name: string): string {
-  return name
-    .replace(/[^\w.-]/g, '_')  // Replace non-word chars (except . and -) with underscore
-    .replace(/_+/g, '_')        // Collapse multiple underscores
-    .replace(/^_|_$/g, '')      // Trim leading/trailing underscores
-    || 'project';               // Fallback if result is empty
+  // Step 1: convert non-ASCII characters to pinyin, preserving rough pronunciation
+  let latinName = name;
+  try {
+    const py = pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' });
+    latinName = Array.isArray(py) ? py.join('') : String(py);
+  } catch {
+    latinName = name;
+  }
+
+  // Step 2: keep only [a-z0-9] and collapse other runs into single dashes
+  let sanitized = latinName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')   // Replace non-alnum with '-'
+    .replace(/-+/g, '-')           // Collapse multiple dashes
+    .replace(/^-|-$/g, '');        // Trim leading/trailing dashes
+
+  return sanitized || 'project';
 }
 
 /**

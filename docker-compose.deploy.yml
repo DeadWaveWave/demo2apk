@@ -54,8 +54,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 2G
+          cpus: "${API_CPU_LIMIT:-2}"
+          memory: "${API_MEMORY_LIMIT:-2G}"
 
   # Background Worker (Android 构建)
   worker:
@@ -69,7 +69,7 @@ services:
       - MOCK_BUILD=false
       - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
-      - CONTAINER_MEMORY_MB=2048
+      - CONTAINER_MEMORY_MB=${WORKER_MEMORY_MB:-2048}
       - CLEANUP_BUILD_ARTIFACTS=${CLEANUP_BUILD_ARTIFACTS:-true}
       - FILE_CLEANUP_ENABLED=${FILE_CLEANUP_ENABLED:-true}
       - FILE_CLEANUP_INTERVAL_MINUTES=${FILE_CLEANUP_INTERVAL_MINUTES:-30}
@@ -85,10 +85,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 2G
+          cpus: "${WORKER_CPU_LIMIT:-2}"
+          memory: "${WORKER_MEMORY_LIMIT:-2G}"
         reservations:
-          memory: 2G
+          memory: "${WORKER_MEMORY_LIMIT:-2G}"
 
   # Redis
   redis:

@@ -47,7 +47,7 @@ async function listZipContents(zipPath: string): Promise<FileEntry[]> {
     const { stdout } = await execa('unzip', ['-l', zipPath]);
     const lines = stdout.split('\n');
     const entries: FileEntry[] = [];
-    
+
     // Skip header lines and footer
     let inFileList = false;
     for (const line of lines) {
@@ -55,12 +55,20 @@ async function listZipContents(zipPath: string): Promise<FileEntry[]> {
         inFileList = !inFileList;
         continue;
       }
-      
+
       if (inFileList && line.trim()) {
-        // Format: Length   Date   Time  Name
-        const match = line.match(/\s*\d+\s+\d{2}-\d{2}-\d{2,4}\s+\d{2}:\d{2}\s+(.+)/);
-        if (match) {
-          const filePath = match[1].trim();
+        // Typical format (but date format varies across platforms):
+        //   Length   Date   Time   Name
+        //   22965  12-02-2025  13:39   path/to/file
+        //   22965  2025-12-02  13:39   path/to/file
+        //
+        // Instead of relying on a specific date regex, split by whitespace:
+        const trimmed = line.trim();
+        const parts = trimmed.split(/\s+/);
+
+        // Expect at least: [length, date, time, name...]
+        if (parts.length >= 4 && /^\d+$/.test(parts[0])) {
+          const filePath = parts.slice(3).join(' ');
           entries.push({
             path: filePath,
             isDirectory: filePath.endsWith('/'),

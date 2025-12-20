@@ -611,6 +611,10 @@ async function setupTailwind(projectDir: string, changes: string[]): Promise<voi
 
   const pkg = await fs.readJson(pkgPath);
   const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+  const typographyPkg = '@tailwindcss/typography';
+  const typographyVersion = '^0.5.19';
+
+  let wrotePackageJson = false;
 
   // Check if we need to add Tailwind dependencies
   if (!('tailwindcss' in deps)) {
@@ -619,14 +623,64 @@ async function setupTailwind(projectDir: string, changes: string[]): Promise<voi
     devDeps['postcss'] = '^8.4.31';
     devDeps['autoprefixer'] = '^10.4.16';
     pkg.devDependencies = devDeps;
-    await fs.writeJson(pkgPath, pkg, { spaces: 2 });
-    changes.push("Added tailwindcss, postcss, autoprefixer dependencies");
+    wrotePackageJson = true;
+    changes.push("Added tailwindcss, postcss, autoprefixer devDependencies");
   }
 
-  // Create tailwind.config.js if missing
-  const tailwindConfigPath = path.join(projectDir, 'tailwind.config.js');
-  if (!(await fs.pathExists(tailwindConfigPath))) {
+  // Tailwind Typography plugin (provides the `prose` class used by many templates)
+  if (!(typographyPkg in deps)) {
+    const devDeps = (pkg.devDependencies || {}) as Record<string, string>;
+    devDeps[typographyPkg] = typographyVersion;
+    pkg.devDependencies = devDeps;
+    wrotePackageJson = true;
+    changes.push(`Added ${typographyPkg} devDependency`);
+  }
+
+  if (wrotePackageJson) {
+    await fs.writeJson(pkgPath, pkg, { spaces: 2 });
+  }
+
+  // Create postcss.config.js if missing
+  const postcssConfigPath = path.join(projectDir, 'postcss.config.js');
+  if (!(await fs.pathExists(postcssConfigPath))) {
+    const postcssConfig = `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+`;
+    await fs.writeFile(postcssConfigPath, postcssConfig, 'utf8');
+    changes.push("Created postcss.config.js");
+  }
+
+  await ensureTailwindTypographyPlugin(projectDir, changes);
+}
+
+async function ensureTailwindTypographyPlugin(projectDir: string, changes: string[]): Promise<void> {
+  const configCandidates = [
+    'tailwind.config.js',
+    'tailwind.config.ts',
+    'tailwind.config.cjs',
+    'tailwind.config.mjs',
+    'tailwind.config.mts',
+  ];
+
+  const configName = await (async (): Promise<string | null> => {
+    for (const name of configCandidates) {
+      if (await fs.pathExists(path.join(projectDir, name))) {
+        return name;
+      }
+    }
+    return null;
+  })();
+
+  const configPath = configName ? path.join(projectDir, configName) : path.join(projectDir, 'tailwind.config.js');
+
+  if (!configName) {
     const tailwindConfig = `/** @type {import('tailwindcss').Config} */
+import typography from '@tailwindcss/typography';
+
 export default {
   content: [
     "./index.html",
@@ -653,26 +707,110 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [typography],
 }
 `;
-    await fs.writeFile(tailwindConfigPath, tailwindConfig, 'utf8');
-    changes.push("Created tailwind.config.js");
+    await fs.writeFile(configPath, tailwindConfig, 'utf8');
+    changes.push(`Created ${path.basename(configPath)} (with typography plugin)`);
+    return;
   }
 
-  // Create postcss.config.js if missing
-  const postcssConfigPath = path.join(projectDir, 'postcss.config.js');
-  if (!(await fs.pathExists(postcssConfigPath))) {
-    const postcssConfig = `export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
-`;
-    await fs.writeFile(postcssConfigPath, postcssConfig, 'utf8');
-    changes.push("Created postcss.config.js");
+  let config = await fs.readFile(configPath, 'utf8');
+  if (config.includes("@tailwindcss/typography")) {
+    return;
   }
+
+  const ext = path.extname(configPath).toLowerCase();
+  const isCjs = ext === '.cjs' || /\bmodule\.exports\b/.test(config);
+
+  const updated = isCjs
+    ? addTypographyToTailwindConfigCjs(config)
+    : addTypographyToTailwindConfigEsm(config);
+
+  if (updated !== config) {
+    await fs.writeFile(configPath, updated, 'utf8');
+    changes.push(`Enabled @tailwindcss/typography in ${path.basename(configPath)}`);
+  }
+}
+
+function addTypographyToTailwindConfigEsm(config: string): string {
+  let updated = config;
+
+  // Ensure import exists
+  if (!/\bimport\s+typography\s+from\s+['"]@tailwindcss\/typography['"]/.test(updated)) {
+    const importLine = `import typography from '@tailwindcss/typography';\n\n`;
+    const headerMatch = updated.match(/^\s*\/\*\*[\s\S]*?\*\/\s*/);
+    if (headerMatch) {
+      updated = `${headerMatch[0]}${importLine}${updated.slice(headerMatch[0].length)}`;
+    } else {
+      updated = `${importLine}${updated}`;
+    }
+  }
+
+  // Ensure plugins contains typography
+  const pluginsRegex = /plugins\s*:\s*\[([\s\S]*?)\]/m;
+  if (pluginsRegex.test(updated)) {
+    updated = updated.replace(pluginsRegex, (match, inner: string) => {
+      if (/\btypography\b/.test(inner) || /@tailwindcss\/typography/.test(inner)) {
+        return match;
+      }
+
+      const trimmed = inner.trim().replace(/,\s*$/, '');
+      const nextInner = trimmed ? `${trimmed}, typography` : 'typography';
+      return `plugins: [${nextInner}]`;
+    });
+    return updated;
+  }
+
+  // Fallback: add plugins field near the end of the exported config object
+  const lastBrace = updated.lastIndexOf('}');
+  if (lastBrace === -1) {
+    return config;
+  }
+
+  let insertAt = lastBrace;
+  let j = insertAt - 1;
+  while (j >= 0 && /\s/.test(updated[j])) {
+    j--;
+  }
+  const prevChar = j >= 0 ? updated[j] : '';
+  const leadingComma = prevChar && prevChar !== '{' && prevChar !== ',' ? ',' : '';
+
+  return `${updated.slice(0, insertAt)}${leadingComma}\n  plugins: [typography],\n${updated.slice(insertAt)}`;
+}
+
+function addTypographyToTailwindConfigCjs(config: string): string {
+  let updated = config;
+  const pluginsRegex = /plugins\s*:\s*\[([\s\S]*?)\]/m;
+
+  if (pluginsRegex.test(updated)) {
+    updated = updated.replace(pluginsRegex, (match, inner: string) => {
+      if (/require\(\s*['"]@tailwindcss\/typography['"]\s*\)/.test(inner) || /@tailwindcss\/typography/.test(inner)) {
+        return match;
+      }
+
+      const trimmed = inner.trim().replace(/,\s*$/, '');
+      const pluginEntry = `require('@tailwindcss/typography')`;
+      const nextInner = trimmed ? `${trimmed}, ${pluginEntry}` : pluginEntry;
+      return `plugins: [${nextInner}]`;
+    });
+    return updated;
+  }
+
+  const lastBrace = updated.lastIndexOf('}');
+  if (lastBrace === -1) {
+    return config;
+  }
+
+  let insertAt = lastBrace;
+  let j = insertAt - 1;
+  while (j >= 0 && /\s/.test(updated[j])) {
+    j--;
+  }
+  const prevChar = j >= 0 ? updated[j] : '';
+  const leadingComma = prevChar && prevChar !== '{' && prevChar !== ',' ? ',' : '';
+  const pluginLine = `\n  plugins: [require('@tailwindcss/typography')],\n`;
+  return `${updated.slice(0, insertAt)}${leadingComma}${pluginLine}${updated.slice(insertAt)}`;
 }
 
 /**

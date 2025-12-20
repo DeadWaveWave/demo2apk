@@ -163,6 +163,7 @@ export async function wrapReactComponent(options: WrapperOptions): Promise<Wrapp
     devDependencies['tailwindcss'] = '^3.4.0';
     devDependencies['postcss'] = '^8.4.0';
     devDependencies['autoprefixer'] = '^10.4.0';
+    devDependencies['@tailwindcss/typography'] = '^0.5.19';
   }
 
   // Create package.json
@@ -236,6 +237,8 @@ export default defineConfig({
   // Create Tailwind config if needed
   if (useTailwind) {
     const tailwindConfig = `/** @type {import('tailwindcss').Config} */
+import typography from '@tailwindcss/typography';
+
 export default {
   content: [
     "./index.html",
@@ -247,7 +250,7 @@ export default {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [typography],
 };
 `;
     await fs.writeFile(path.join(outputDir, 'tailwind.config.js'), tailwindConfig, 'utf8');
@@ -370,4 +373,3 @@ export async function createProjectZip(projectDir: string, outputPath: string): 
 
   return outputPath;
 }
-

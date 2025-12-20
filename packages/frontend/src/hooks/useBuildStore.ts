@@ -8,6 +8,9 @@ interface BuildState {
   progress: number
   logs: string[]
   taskId: string | null
+  traceId: string | null
+  hint: string | null
+  errorCode: string | null
   fileName: string | null
   downloadUrl: string | null
   error: string | null
@@ -46,6 +49,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   progress: 0,
   logs: [],
   taskId: null,
+  traceId: null,
+  hint: null,
+  errorCode: null,
   fileName: null,
   downloadUrl: null,
   error: null,
@@ -60,6 +66,10 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       status: 'uploading',
       progress: 0,
       logs: [],
+      taskId: null,
+      traceId: null,
+      hint: null,
+      errorCode: null,
       fileName: file.name,
       error: null,
       expiresAt: null,
@@ -99,6 +109,11 @@ export const useBuildStore = create<BuildState>((set, get) => ({
         if (response.status === 429) {
           throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
         }
+
+        if (typeof errorData.taskId === 'string') set({ taskId: errorData.taskId })
+        if (typeof errorData.traceId === 'string') set({ traceId: errorData.traceId })
+        if (typeof errorData.hint === 'string') set({ hint: errorData.hint })
+        if (typeof errorData.code === 'string') set({ errorCode: errorData.code })
 
         throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
       }
@@ -148,6 +163,10 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       status: 'uploading',
       progress: 0,
       logs: [],
+      taskId: null,
+      traceId: null,
+      hint: null,
+      errorCode: null,
       fileName: `${appName}.tsx`,
       error: null,
       expiresAt: null,
@@ -181,6 +200,11 @@ export const useBuildStore = create<BuildState>((set, get) => ({
         if (response.status === 429) {
           throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
         }
+
+        if (typeof errorData.taskId === 'string') set({ taskId: errorData.taskId })
+        if (typeof errorData.traceId === 'string') set({ traceId: errorData.traceId })
+        if (typeof errorData.hint === 'string') set({ hint: errorData.hint })
+        if (typeof errorData.code === 'string') set({ errorCode: errorData.code })
 
         throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
       }
@@ -257,6 +281,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       progress: 0,
       logs: [],
       taskId: null,
+      traceId: null,
+      hint: null,
+      errorCode: null,
       fileName: null,
       downloadUrl: null,
       error: null,

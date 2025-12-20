@@ -184,7 +184,10 @@ FILE_RETENTION_HOURS=2
 # 是否在每次构建后清理 Cordova/Capacitor 临时工程目录
 CLEANUP_BUILD_ARTIFACTS=true
 
-# Worker 端是否定期清理 BUILDS_DIR 中过期的 APK / 构建产物
+# 是否在每次任务结束后清理上传文件（默认 true）
+CLEANUP_UPLOADS_ON_COMPLETE=true
+
+# Worker 端是否定期清理过期文件（APK / 构建产物 / 上传文件）
 FILE_CLEANUP_ENABLED=true
 FILE_CLEANUP_INTERVAL_MINUTES=30
 ```

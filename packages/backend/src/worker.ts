@@ -1,6 +1,7 @@
 // Load environment variables from .env file (must be first!)
 import dotenv from 'dotenv';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,6 +20,7 @@ import {
   BuildJobResult,
   getRedisConnection,
 } from './services/queue.js';
+import { cleanupTask } from './services/storage.js';
 import { buildHtmlToApk, buildReactToApk, buildHtmlProjectToApk } from '@demo2apk/core';
 import { createLogger, Logger } from './utils/logger.js';
 
@@ -29,9 +31,11 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const MOCK_BUILD = process.env.MOCK_BUILD === 'true';
 const MOCK_APK_PATH = process.env.MOCK_APK_PATH || './test-assets/mock.apk';
 const BUILDS_DIR = process.env.BUILDS_DIR || path.join(process.cwd(), 'builds');
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(os.tmpdir(), 'demo2apk-uploads');
 const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 10);
 const FILE_CLEANUP_ENABLED = process.env.FILE_CLEANUP_ENABLED !== 'false';
 const FILE_CLEANUP_INTERVAL_MINUTES = parseInt(process.env.FILE_CLEANUP_INTERVAL_MINUTES || '30', 10);
+const CLEANUP_UPLOADS_ON_COMPLETE = process.env.CLEANUP_UPLOADS_ON_COMPLETE !== 'false';
 
 /**
  * Process a build job
@@ -52,46 +56,46 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
     });
   };
 
-  // Mock build for testing
-  if (MOCK_BUILD) {
-    jobLogger.warn('MOCK_BUILD enabled - returning fake APK');
+  try {
+    // Mock build for testing
+    if (MOCK_BUILD) {
+      jobLogger.warn('MOCK_BUILD enabled - returning fake APK');
 
-    await onProgress('Starting mock build...', 10);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      await onProgress('Starting mock build...', 10);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    await onProgress('Processing files...', 30);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      await onProgress('Processing files...', 30);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    await onProgress('Building APK...', 60);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      await onProgress('Building APK...', 60);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    await onProgress('Finalizing...', 90);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+      await onProgress('Finalizing...', 90);
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Create a fake APK file if it doesn't exist
-    const mockApkDest = path.join(outputDir, `${appName}.apk`);
+      // Create a fake APK file if it doesn't exist
+      const mockApkDest = path.join(outputDir, `${appName}.apk`);
 
-    if (await fs.pathExists(MOCK_APK_PATH)) {
-      await fs.copy(MOCK_APK_PATH, mockApkDest);
-    } else {
-      // Create a minimal file for testing
-      await fs.ensureDir(outputDir);
-      await fs.writeFile(mockApkDest, 'MOCK APK FILE FOR TESTING');
+      if (await fs.pathExists(MOCK_APK_PATH)) {
+        await fs.copy(MOCK_APK_PATH, mockApkDest);
+      } else {
+        // Create a minimal file for testing
+        await fs.ensureDir(outputDir);
+        await fs.writeFile(mockApkDest, 'MOCK APK FILE FOR TESTING');
+      }
+
+      await onProgress('Build completed!', 100);
+      const duration = Date.now() - startTime;
+
+      jobLogger.buildComplete(taskId, appName, true, duration, { apkPath: mockApkDest, mock: true });
+
+      return {
+        success: true,
+        apkPath: mockApkDest,
+        duration,
+      };
     }
 
-    await onProgress('Build completed!', 100);
-    const duration = Date.now() - startTime;
-
-    jobLogger.buildComplete(taskId, appName, true, duration, { apkPath: mockApkDest, mock: true });
-
-    return {
-      success: true,
-      apkPath: mockApkDest,
-      duration,
-    };
-  }
-
-  try {
     let result: BuildJobResult;
 
     if (type === 'html') {
@@ -164,6 +168,22 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
       error: error instanceof Error ? error.message : String(error),
       duration,
     };
+  } finally {
+    if (CLEANUP_UPLOADS_ON_COMPLETE) {
+      try {
+        await cleanupTask(taskId, appName, { buildsDir: outputDir, uploadsDir: UPLOADS_DIR });
+      } catch (error) {
+        jobLogger.warn('Post-build cleanup failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // If the API created a temporary ZIP in BUILDS_DIR for React wrapping, remove it after the build.
+      // (Uploaded ZIPs live in UPLOADS_DIR and are already removed by cleanupTask above.)
+      if (filePath && path.dirname(filePath) === outputDir && filePath.endsWith('-project.zip')) {
+        await fs.remove(filePath).catch(() => {});
+      }
+    }
   }
 }
 
@@ -174,42 +194,54 @@ async function cleanupOldBuilds() {
   const cleanupLogger = logger.child({ operation: 'cleanup' });
   const retentionMs = FILE_RETENTION_HOURS * 60 * 60 * 1000;
   const now = Date.now();
-  let cleanedCount = 0;
+  let cleanedBuilds = 0;
+  let cleanedUploads = 0;
   const cleanedItems: string[] = [];
 
   try {
-    if (!await fs.pathExists(BUILDS_DIR)) {
-      return;
-    }
+    const targets = [
+      { dir: BUILDS_DIR, label: 'builds' as const },
+      { dir: UPLOADS_DIR, label: 'uploads' as const },
+    ];
 
-    const entries = await fs.readdir(BUILDS_DIR, { withFileTypes: true });
+    for (const target of targets) {
+      if (!await fs.pathExists(target.dir)) continue;
 
-    for (const entry of entries) {
-      const entryPath = path.join(BUILDS_DIR, entry.name);
+      const entries = await fs.readdir(target.dir, { withFileTypes: true });
 
-      try {
-        const stats = await fs.stat(entryPath);
-        const age = now - stats.mtimeMs;
+      for (const entry of entries) {
+        const entryPath = path.join(target.dir, entry.name);
 
-        if (age > retentionMs) {
-          if (entry.isDirectory()) {
-            await fs.remove(entryPath);
-          } else {
-            await fs.unlink(entryPath);
+        try {
+          const stats = await fs.stat(entryPath);
+          const age = now - stats.mtimeMs;
+
+          if (age > retentionMs) {
+            if (entry.isDirectory()) {
+              await fs.remove(entryPath);
+            } else {
+              await fs.unlink(entryPath);
+            }
+
+            if (target.label === 'builds') cleanedBuilds++;
+            else cleanedUploads++;
+
+            if (cleanedItems.length < 10) {
+              cleanedItems.push(`${target.label}/${entry.name}`);
+            }
           }
-          cleanedCount++;
-          cleanedItems.push(entry.name);
+        } catch {
+          // Ignore errors for individual files
         }
-      } catch (err) {
-        // Ignore errors for individual files
       }
     }
 
-    if (cleanedCount > 0) {
+    if (cleanedBuilds > 0 || cleanedUploads > 0) {
       cleanupLogger.info('Cleanup completed', {
-        removedCount: cleanedCount,
         retentionHours: FILE_RETENTION_HOURS,
-        items: cleanedItems.slice(0, 10), // 只记录前10个
+        removedBuilds: cleanedBuilds,
+        removedUploads: cleanedUploads,
+        items: cleanedItems, // 已限制到前 10 个
       });
     }
   } catch (err) {
@@ -260,4 +292,3 @@ if (FILE_CLEANUP_ENABLED) {
     fileRetentionHours: FILE_RETENTION_HOURS,
   });
 }
-

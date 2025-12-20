@@ -184,7 +184,10 @@ FILE_RETENTION_HOURS=2
 # Whether to delete Cordova/Capacitor work dirs after each build
 CLEANUP_BUILD_ARTIFACTS=true
 
-# Worker-side cleanup of old APKs/builds (in BUILDS_DIR)
+# Whether to delete uploaded inputs after each job (default true)
+CLEANUP_UPLOADS_ON_COMPLETE=true
+
+# Worker-side cleanup of old APKs/builds/uploads
 FILE_CLEANUP_ENABLED=true
 FILE_CLEANUP_INTERVAL_MINUTES=30
 ```
@@ -223,4 +226,3 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 ---
 
 **Made with ❤️ for Vibe Coding**
-

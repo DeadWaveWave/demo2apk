@@ -6,6 +6,12 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# System tools used by the API for ZIP inspection/creation (detectZipProjectType, createProjectZip)
+RUN apt-get update && apt-get install -y \
+    zip \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -35,6 +41,7 @@ WORKDIR /app
 # Using Eclipse Temurin since Debian Bookworm only has JDK 17 in official repos
 RUN apt-get update && apt-get install -y \
     curl \
+    zip \
     unzip \
     git \
     wget \

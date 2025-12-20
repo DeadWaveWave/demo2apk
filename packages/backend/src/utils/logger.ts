@@ -89,6 +89,14 @@ export class Logger {
     this.fastifyLogger = fastifyLogger;
   }
 
+  getTraceId(): string | undefined {
+    return this.context.traceId;
+  }
+
+  getContext(): LogContext {
+    return { ...this.context };
+  }
+
   /**
    * 创建子 Logger，继承父级上下文
    */
@@ -359,4 +367,3 @@ export function createRequestLogger(
     fastifyLogger
   );
 }
-

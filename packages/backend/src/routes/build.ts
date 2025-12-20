@@ -35,6 +35,87 @@ function validateVersion(version: string): boolean {
   return versionRegex.test(version.trim());
 }
 
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
+  const value = bytes / Math.pow(k, i);
+  return `${parseFloat(value.toFixed(2))} ${sizes[i]}`;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === 'string' && code.trim()) return code;
+  if (typeof code === 'number') return String(code);
+  return undefined;
+}
+
+function classifyCreateBuildJobError(
+  error: unknown,
+  maxFileSize: number
+): { statusCode: number; error: string; message: string; code?: string; hint?: string } {
+  const code = getErrorCode(error);
+  const message = error instanceof Error ? error.message : String(error);
+
+  // Fastify multipart size limits
+  if (code === 'FST_REQ_FILE_TOO_LARGE' || code === 'LIMIT_FILE_SIZE') {
+    return {
+      statusCode: 413,
+      error: 'Payload Too Large',
+      code,
+      message: `File too large. Max size is ${formatBytes(maxFileSize)}.`,
+      hint: 'Try compressing the ZIP or increasing MAX_FILE_SIZE.',
+    };
+  }
+
+  // Disk full / FS issues
+  if (code === 'ENOSPC') {
+    return {
+      statusCode: 507,
+      error: 'Insufficient Storage',
+      code,
+      message: 'Server storage is full. Please try again later.',
+      hint: 'Check /app/uploads, /app/builds and docker volume disk usage.',
+    };
+  }
+
+  // Missing system binaries used by core helpers
+  if (code === 'ENOENT' && /\b(zip|unzip)\b/i.test(message)) {
+    return {
+      statusCode: 500,
+      error: 'Server Misconfigured',
+      code,
+      message: 'Server missing required system tool (zip/unzip).',
+      hint: 'Ensure the backend image installs zip + unzip.',
+    };
+  }
+
+  // Redis / queue issues (BullMQ)
+  if (
+    code === 'ECONNREFUSED' ||
+    code === 'ETIMEDOUT' ||
+    /\b(MISCONF|OOM|READONLY)\b/i.test(message) ||
+    /\b(redis|bullmq)\b/i.test(message)
+  ) {
+    return {
+      statusCode: 503,
+      error: 'Service Unavailable',
+      code,
+      message: 'Queue service unavailable. Please try again later.',
+      hint: 'Check Redis health and available disk/memory.',
+    };
+  }
+
+  return {
+    statusCode: 500,
+    error: 'Internal Server Error',
+    code,
+    message: 'Failed to create build job',
+  };
+}
+
 export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify, options) => {
   const { config } = options;
 
@@ -62,101 +143,101 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     const taskId = nanoid(12);
     const logger: Logger = request.logger;
 
-    // Parse multipart form data
-    let htmlFile: { buffer: Buffer; filename: string } | null = null;
-    let iconFile: { buffer: Buffer; filename: string } | null = null;
-    let appName = '';
-    let appId: string | undefined;
-    let appVersion: string | undefined;
-    let permissions: string[] | undefined;
+    try {
+      // Parse multipart form data
+      let htmlFile: { buffer: Buffer; filename: string } | null = null;
+      let iconFile: { buffer: Buffer; filename: string } | null = null;
+      let appName = '';
+      let appId: string | undefined;
+      let appVersion: string | undefined;
+      let permissions: string[] | undefined;
 
-    const parts = request.parts();
-    for await (const part of parts) {
-      if (part.type === 'file') {
-        const buffer = await part.toBuffer();
-        if (part.fieldname === 'file') {
-          htmlFile = { buffer, filename: part.filename };
-        } else if (part.fieldname === 'icon') {
-          // Validate icon file type
-          const iconFilename = part.filename.toLowerCase();
-          if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
-            iconFile = { buffer, filename: part.filename };
-          }
-        }
-      } else if (part.type === 'field') {
-        if (part.fieldname === 'appName') {
-          appName = String(part.value || '').trim();
-        } else if (part.fieldname === 'appId') {
-          appId = String(part.value || '').trim() || undefined;
-        } else if (part.fieldname === 'appVersion') {
-          const versionValue = String(part.value || '').trim();
-          if (versionValue) {
-            // Validate version format
-            if (!validateVersion(versionValue)) {
-              return reply.status(400).send({
-                error: 'Bad Request',
-                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
-              });
+      const parts = request.parts();
+      for await (const part of parts) {
+        if (part.type === 'file') {
+          const buffer = await part.toBuffer();
+          if (part.fieldname === 'file') {
+            htmlFile = { buffer, filename: part.filename };
+          } else if (part.fieldname === 'icon') {
+            // Validate icon file type
+            const iconFilename = part.filename.toLowerCase();
+            if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
+              iconFile = { buffer, filename: part.filename };
             }
-            appVersion = versionValue;
           }
-        } else if (part.fieldname === 'permissions') {
-          // Parse permissions as JSON array or comma-separated string
-          const permValue = String(part.value || '').trim();
-          if (permValue) {
-            try {
-              // Try parsing as JSON first
-              const parsed = JSON.parse(permValue);
-              permissions = Array.isArray(parsed) ? parsed : [permValue];
-            } catch {
-              // Fall back to comma-separated
-              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+        } else if (part.type === 'field') {
+          if (part.fieldname === 'appName') {
+            appName = String(part.value || '').trim();
+          } else if (part.fieldname === 'appId') {
+            appId = String(part.value || '').trim() || undefined;
+          } else if (part.fieldname === 'appVersion') {
+            const versionValue = String(part.value || '').trim();
+            if (versionValue) {
+              // Validate version format
+              if (!validateVersion(versionValue)) {
+                return reply.status(400).send({
+                  error: 'Bad Request',
+                  message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+                });
+              }
+              appVersion = versionValue;
+            }
+          } else if (part.fieldname === 'permissions') {
+            // Parse permissions as JSON array or comma-separated string
+            const permValue = String(part.value || '').trim();
+            if (permValue) {
+              try {
+                // Try parsing as JSON first
+                const parsed = JSON.parse(permValue);
+                permissions = Array.isArray(parsed) ? parsed : [permValue];
+              } catch {
+                // Fall back to comma-separated
+                permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+              }
             }
           }
         }
       }
-    }
 
-    if (!htmlFile) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No file uploaded. Please upload an HTML file.',
+      if (!htmlFile) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'No file uploaded. Please upload an HTML file.',
+        });
+      }
+
+      // Accept HTML, JS, JSX, TS, TSX files
+      const filename = htmlFile.filename.toLowerCase();
+      const validExtensions = ['.html', '.htm', '.js', '.jsx', '.ts', '.tsx'];
+      const hasValidExtension = validExtensions.some(ext => filename.endsWith(ext));
+
+      if (!hasValidExtension) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid file type. Please upload an HTML, JS, JSX, TS, or TSX file.',
+        });
+      }
+
+      // Use filename as app name if not provided (for non-React HTML builds)
+      const uploadedBaseName = path.parse(htmlFile.filename).name;
+      appName = appName || uploadedBaseName || 'MyVibeApp';
+
+      const fileSize = htmlFile.buffer.length;
+      const fileContent = htmlFile.buffer.toString('utf8');
+
+      // Detect actual code type from content (not just extension)
+      const detection = detectCodeType(fileContent);
+
+      logger.info('File received for analysis', {
+        taskId,
+        appName,
+        fileName: htmlFile.filename,
+        fileSize,
+        detectedType: detection.type,
+        confidence: detection.confidence,
+        hasIcon: !!iconFile,
       });
-    }
 
-    // Accept HTML, JS, JSX, TS, TSX files
-    const filename = htmlFile.filename.toLowerCase();
-    const validExtensions = ['.html', '.htm', '.js', '.jsx', '.ts', '.tsx'];
-    const hasValidExtension = validExtensions.some(ext => filename.endsWith(ext));
-
-    if (!hasValidExtension) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'Invalid file type. Please upload an HTML, JS, JSX, TS, or TSX file.',
-      });
-    }
-
-    // Use filename as app name if not provided (for non-React HTML builds)
-    const uploadedBaseName = path.parse(htmlFile.filename).name;
-    appName = appName || uploadedBaseName || 'MyVibeApp';
-
-    const fileSize = htmlFile.buffer.length;
-    const fileContent = htmlFile.buffer.toString('utf8');
-
-    // Detect actual code type from content (not just extension)
-    const detection = detectCodeType(fileContent);
-
-    logger.info('File received for analysis', {
-      taskId,
-      appName,
-      fileName: htmlFile.filename,
-      fileSize,
-      detectedType: detection.type,
-      confidence: detection.confidence,
-      hasIcon: !!iconFile,
-    });
-
-    try {
       let filePath: string;
       let buildType: 'html' | 'zip' = 'html';
 
@@ -246,10 +327,15 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         downloadUrl: `/api/build/${taskId}/download`,
       };
     } catch (error) {
-      logger.error('Failed to create build job', error, { taskId, appName });
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Failed to create build job',
+      logger.error('Failed to create build job', error, { taskId });
+      const classified = classifyCreateBuildJobError(error, config.maxFileSize);
+      return reply.status(classified.statusCode).send({
+        error: classified.error,
+        message: classified.message,
+        taskId,
+        traceId: logger.getTraceId(),
+        code: classified.code,
+        hint: classified.hint,
       });
     }
   });
@@ -264,92 +350,92 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     // Generate task ID early for logging
     const taskId = nanoid(12);
     const logger: Logger = request.logger;
-
-    // Parse multipart form data
-    let zipFile: { buffer: Buffer; filename: string } | null = null;
-    let iconFile: { buffer: Buffer; filename: string } | null = null;
     let appName = '';
     let appId: string | undefined;
-    let appVersion: string | undefined;
-    let permissions: string[] | undefined;
 
-    const parts = request.parts();
-    for await (const part of parts) {
-      if (part.type === 'file') {
-        const buffer = await part.toBuffer();
-        if (part.fieldname === 'file') {
-          zipFile = { buffer, filename: part.filename };
-        } else if (part.fieldname === 'icon') {
-          // Validate icon file type
-          const iconFilename = part.filename.toLowerCase();
-          if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
-            iconFile = { buffer, filename: part.filename };
-          }
-        }
-      } else if (part.type === 'field') {
-        if (part.fieldname === 'appName') {
-          appName = String(part.value || '').trim();
-        } else if (part.fieldname === 'appId') {
-          appId = String(part.value || '').trim() || undefined;
-        } else if (part.fieldname === 'appVersion') {
-          const versionValue = String(part.value || '').trim();
-          if (versionValue) {
-            // Validate version format
-            if (!validateVersion(versionValue)) {
-              return reply.status(400).send({
-                error: 'Bad Request',
-                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
-              });
+    try {
+      // Parse multipart form data
+      let zipFile: { buffer: Buffer; filename: string } | null = null;
+      let iconFile: { buffer: Buffer; filename: string } | null = null;
+      let appVersion: string | undefined;
+      let permissions: string[] | undefined;
+
+      const parts = request.parts();
+      for await (const part of parts) {
+        if (part.type === 'file') {
+          const buffer = await part.toBuffer();
+          if (part.fieldname === 'file') {
+            zipFile = { buffer, filename: part.filename };
+          } else if (part.fieldname === 'icon') {
+            // Validate icon file type
+            const iconFilename = part.filename.toLowerCase();
+            if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
+              iconFile = { buffer, filename: part.filename };
             }
-            appVersion = versionValue;
           }
-        } else if (part.fieldname === 'permissions') {
-          const permValue = String(part.value || '').trim();
-          if (permValue) {
-            try {
-              const parsed = JSON.parse(permValue);
-              permissions = Array.isArray(parsed) ? parsed : [permValue];
-            } catch {
-              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+        } else if (part.type === 'field') {
+          if (part.fieldname === 'appName') {
+            appName = String(part.value || '').trim();
+          } else if (part.fieldname === 'appId') {
+            appId = String(part.value || '').trim() || undefined;
+          } else if (part.fieldname === 'appVersion') {
+            const versionValue = String(part.value || '').trim();
+            if (versionValue) {
+              // Validate version format
+              if (!validateVersion(versionValue)) {
+                return reply.status(400).send({
+                  error: 'Bad Request',
+                  message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+                });
+              }
+              appVersion = versionValue;
+            }
+          } else if (part.fieldname === 'permissions') {
+            const permValue = String(part.value || '').trim();
+            if (permValue) {
+              try {
+                const parsed = JSON.parse(permValue);
+                permissions = Array.isArray(parsed) ? parsed : [permValue];
+              } catch {
+                permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+              }
             }
           }
         }
       }
-    }
 
-    if (!zipFile) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No file uploaded. Please upload a ZIP file.',
+      if (!zipFile) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'No file uploaded. Please upload a ZIP file.',
+        });
+      }
+
+      // Validate file type
+      const filename = zipFile.filename.toLowerCase();
+      if (!filename.endsWith('.zip')) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid file type. Please upload a ZIP file.',
+        });
+      }
+
+      // Normalize app identity (name + ID) based on upload
+      const identity = resolveAppIdentityFromUpload(appName, appId, zipFile.filename, 'MyReactApp');
+      appName = identity.appName;
+      appId = identity.appId;
+
+      const fileSize = zipFile.buffer.length;
+
+      logger.info('ZIP file received', {
+        taskId,
+        appName,
+        appId,
+        fileName: zipFile.filename,
+        fileSize,
+        hasIcon: !!iconFile,
       });
-    }
 
-    // Validate file type
-    const filename = zipFile.filename.toLowerCase();
-    if (!filename.endsWith('.zip')) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'Invalid file type. Please upload a ZIP file.',
-      });
-    }
-
-    // Normalize app identity (name + ID) based on upload
-    const identity = resolveAppIdentityFromUpload(appName, appId, zipFile.filename, 'MyReactApp');
-    appName = identity.appName;
-    appId = identity.appId;
-
-    const fileSize = zipFile.buffer.length;
-
-    logger.info('ZIP file received', {
-      taskId,
-      appName,
-      appId,
-      fileName: zipFile.filename,
-      fileSize,
-      hasIcon: !!iconFile,
-    });
-
-    try {
       // Save uploaded ZIP file
       const filePath = await saveUploadedFile(
         zipFile.buffer,
@@ -447,9 +533,14 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       };
     } catch (error) {
       logger.error('Failed to create ZIP build job', error, { taskId, appName, appId });
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Failed to create build job',
+      const classified = classifyCreateBuildJobError(error, config.maxFileSize);
+      return reply.status(classified.statusCode).send({
+        error: classified.error,
+        message: classified.message,
+        taskId,
+        traceId: logger.getTraceId(),
+        code: classified.code,
+        hint: classified.hint,
       });
     }
   });
@@ -464,87 +555,87 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
   }>('/code', { ...rateLimitConfig }, async (request, reply) => {
     const taskId = nanoid(12);
     const logger: Logger = request.logger;
-
-    // Parse multipart form data
-    let codeContent = '';
-    let iconFile: { buffer: Buffer; filename: string } | null = null;
     let appName = '';
     let appId: string | undefined;
-    let appVersion: string | undefined;
-    let permissions: string[] | undefined;
 
-    const parts = request.parts();
-    for await (const part of parts) {
-      if (part.type === 'file') {
-        const buffer = await part.toBuffer();
-        if (part.fieldname === 'code') {
-          codeContent = buffer.toString('utf8');
-        } else if (part.fieldname === 'icon') {
-          const iconFilename = part.filename.toLowerCase();
-          if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
-            iconFile = { buffer, filename: part.filename };
-          }
-        }
-      } else if (part.type === 'field') {
-        if (part.fieldname === 'code') {
-          codeContent = String(part.value || '');
-        } else if (part.fieldname === 'appName') {
-          appName = String(part.value || '').trim();
-        } else if (part.fieldname === 'appId') {
-          appId = String(part.value || '').trim() || undefined;
-        } else if (part.fieldname === 'appVersion') {
-          const versionValue = String(part.value || '').trim();
-          if (versionValue) {
-            // Validate version format
-            if (!validateVersion(versionValue)) {
-              return reply.status(400).send({
-                error: 'Bad Request',
-                message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
-              });
+    try {
+      // Parse multipart form data
+      let codeContent = '';
+      let iconFile: { buffer: Buffer; filename: string } | null = null;
+      let appVersion: string | undefined;
+      let permissions: string[] | undefined;
+
+      const parts = request.parts();
+      for await (const part of parts) {
+        if (part.type === 'file') {
+          const buffer = await part.toBuffer();
+          if (part.fieldname === 'code') {
+            codeContent = buffer.toString('utf8');
+          } else if (part.fieldname === 'icon') {
+            const iconFilename = part.filename.toLowerCase();
+            if (iconFilename.endsWith('.png') || iconFilename.endsWith('.jpg') || iconFilename.endsWith('.jpeg')) {
+              iconFile = { buffer, filename: part.filename };
             }
-            appVersion = versionValue;
           }
-        } else if (part.fieldname === 'permissions') {
-          const permValue = String(part.value || '').trim();
-          if (permValue) {
-            try {
-              const parsed = JSON.parse(permValue);
-              permissions = Array.isArray(parsed) ? parsed : [permValue];
-            } catch {
-              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+        } else if (part.type === 'field') {
+          if (part.fieldname === 'code') {
+            codeContent = String(part.value || '');
+          } else if (part.fieldname === 'appName') {
+            appName = String(part.value || '').trim();
+          } else if (part.fieldname === 'appId') {
+            appId = String(part.value || '').trim() || undefined;
+          } else if (part.fieldname === 'appVersion') {
+            const versionValue = String(part.value || '').trim();
+            if (versionValue) {
+              // Validate version format
+              if (!validateVersion(versionValue)) {
+                return reply.status(400).send({
+                  error: 'Bad Request',
+                  message: 'Invalid version format. Version must be in format x.x.x (e.g., 1.0.0)',
+                });
+              }
+              appVersion = versionValue;
+            }
+          } else if (part.fieldname === 'permissions') {
+            const permValue = String(part.value || '').trim();
+            if (permValue) {
+              try {
+                const parsed = JSON.parse(permValue);
+                permissions = Array.isArray(parsed) ? parsed : [permValue];
+              } catch {
+                permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+              }
             }
           }
         }
       }
-    }
 
-    if (!codeContent.trim()) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No code provided. Please paste your code.',
+      if (!codeContent.trim()) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'No code provided. Please paste your code.',
+        });
+      }
+
+      // Detect code type
+      const detection = detectCodeType(codeContent);
+
+      // 精简版：只记录核心信息
+      logger.info('Code received for analysis', {
+        taskId,
+        appName,
+        codeLength: codeContent.length,
+        detectedType: detection.type,
+        confidence: detection.confidence,
+        hasIcon: !!iconFile,
       });
-    }
 
-    // Detect code type
-    const detection = detectCodeType(codeContent);
+      // 详细检测线索放到 debug，避免污染正常日志
+      logger.debug('Code detection hints', {
+        taskId,
+        hints: detection.hints,
+      });
 
-    // 精简版：只记录核心信息
-    logger.info('Code received for analysis', {
-      taskId,
-      appName,
-      codeLength: codeContent.length,
-      detectedType: detection.type,
-      confidence: detection.confidence,
-      hasIcon: !!iconFile,
-    });
-
-    // 详细检测线索放到 debug，避免污染正常日志
-    logger.debug('Code detection hints', {
-      taskId,
-      hints: detection.hints,
-    });
-
-    try {
       let filePath: string;
       let buildType: 'html' | 'zip';
 
@@ -634,9 +725,14 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       };
     } catch (error) {
       logger.error('Failed to create code build job', error, { taskId, appName });
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Failed to create build job',
+      const classified = classifyCreateBuildJobError(error, config.maxFileSize);
+      return reply.status(classified.statusCode).send({
+        error: classified.error,
+        message: classified.message,
+        taskId,
+        traceId: logger.getTraceId(),
+        code: classified.code,
+        hint: classified.hint,
       });
     }
   });

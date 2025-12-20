@@ -21,8 +21,13 @@ const resources = {
             app: {
                 systemErrorTitle: 'SYSTEM ERROR',
                 taskIdLabel: 'TASK_ID',
+                traceIdLabel: 'TRACE_ID',
+                errorCodeLabel: 'ERROR_CODE',
+                hintLabel: 'HINT',
                 copyTaskId: '[COPY]',
                 copyTaskTooltip: 'Copy Task ID',
+                copyTraceId: '[COPY]',
+                copyTraceTooltip: 'Copy Trace ID',
                 resetButton: 'RESET SEQUENCE',
                 reportIssue: '[REPORT ISSUE]',
             },
@@ -202,8 +207,13 @@ const resources = {
             app: {
                 systemErrorTitle: '系统错误',
                 taskIdLabel: '任务编号',
+                traceIdLabel: '追踪编号',
+                errorCodeLabel: '错误代码',
+                hintLabel: '提示',
                 copyTaskId: '[复制]',
                 copyTaskTooltip: '复制任务编号',
+                copyTraceId: '[复制]',
+                copyTraceTooltip: '复制追踪编号',
                 resetButton: '重新开始',
                 reportIssue: '[反馈问题]',
             },
@@ -376,4 +386,3 @@ i18n.use(initReactI18next).init({
 })
 
 export default i18n
-

@@ -9,7 +9,7 @@ import BuildHistory from './components/BuildHistory'
 import { useBuildStore, getTaskIdFromUrl } from './hooks/useBuildStore'
 
 function App() {
-  const { status, error, reset, taskId, restoreFromTaskId, isRestoring } = useBuildStore()
+  const { status, error, reset, taskId, traceId, hint, errorCode, restoreFromTaskId, isRestoring } = useBuildStore()
   const { t } = useTranslation()
 
   // Restore state from URL on mount
@@ -69,6 +69,23 @@ function App() {
                 <h2 className="text-3xl text-bp-alert mb-4 font-bold tracking-widest">{t('app.systemErrorTitle')}</h2>
                 <div className="h-[1px] w-full bg-bp-alert/30 mb-6" />
                 <p className="text-bp-text mb-6 font-mono">{error}</p>
+
+                {(hint || errorCode) && (
+                  <div className="mb-6 p-3 border border-bp-grid bg-bp-dark/50 text-left">
+                    {errorCode && (
+                      <div className="mb-2">
+                        <span className="text-bp-dim text-xs font-mono">{t('app.errorCodeLabel')}: </span>
+                        <span className="text-bp-blue text-xs font-mono select-all">{errorCode}</span>
+                      </div>
+                    )}
+                    {hint && (
+                      <div>
+                        <div className="text-bp-dim text-xs font-mono mb-1">{t('app.hintLabel')}:</div>
+                        <div className="text-bp-text text-xs font-mono whitespace-pre-wrap">{hint}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Task ID for issue reporting */}
                 {taskId && (
@@ -84,13 +101,28 @@ function App() {
                     </button>
                   </div>
                 )}
+
+                {/* Trace ID for issue reporting (when job wasn't created) */}
+                {traceId && (
+                  <div className="mb-8 p-3 border border-bp-grid bg-bp-dark/50 inline-block">
+                    <span className="text-bp-dim text-xs font-mono">{t('app.traceIdLabel')}: </span>
+                    <span className="text-bp-blue text-xs font-mono select-all">{traceId}</span>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText(traceId)}
+                      className="ml-2 text-bp-dim hover:text-bp-blue text-xs"
+                      title={t('app.copyTraceTooltip')}
+                    >
+                      {t('app.copyTraceId')}
+                    </button>
+                  </div>
+                )}
                 
                 <div className="flex flex-col items-center gap-2">
                   <button onClick={reset} className="btn-blueprint border-bp-alert text-bp-alert hover:bg-bp-alert hover:text-bp-dark">
                     {t('app.resetButton')}
                   </button>
                   <a 
-                    href={`https://github.com/DeadWaveWave/demo2apk/issues/new?title=Build%20Error%20[${taskId || 'N/A'}]&body=**Task%20ID:**%20%60${taskId || 'N/A'}%60%0A%0A**Error:**%0A%60%60%60%0A${encodeURIComponent(error || '')}%0A%60%60%60%0A%0A**Additional%20Info:**%0A`}
+                    href={`https://github.com/DeadWaveWave/demo2apk/issues/new?title=Build%20Error%20[${taskId || traceId || 'N/A'}]&body=**Task%20ID:**%20%60${taskId || 'N/A'}%60%0A**Trace%20ID:**%20%60${traceId || 'N/A'}%60%0A**Error%20Code:**%20%60${errorCode || 'N/A'}%60%0A%0A**Hint:**%0A${encodeURIComponent(hint || 'N/A')}%0A%0A**Error:**%0A%60%60%60%0A${encodeURIComponent(error || '')}%0A%60%60%60%0A%0A**Additional%20Info:**%0A`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-bp-dim hover:text-bp-text text-xs font-mono"

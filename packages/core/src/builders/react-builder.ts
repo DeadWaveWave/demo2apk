@@ -5,6 +5,7 @@ import { execa, execaCommand } from 'execa';
 import sharp from 'sharp';
 import { pinyin } from 'pinyin-pro';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
+import { fixExpoProject } from '../utils/expo-project-fixer.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
 import { generateAppId, ensureGradleWrapper } from './html-builder.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
@@ -519,6 +520,13 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       if (fixResult.fixed) {
         onProgress?.(`Applied fixes: ${fixResult.changes.join(', ')}`, 24);
       }
+    }
+
+    // Expo Router templates may default to `web.output: "server"` or `"static"`, which
+    // is not suitable for an offline APK WebView and can crash `expo export` in generic sandboxes.
+    const expoFix = await fixExpoProject(projectDir);
+    if (expoFix.fixed) {
+      onProgress?.(`Applied Expo fixes: ${expoFix.changes.join(', ')}`, 24);
     }
 
     // Remove any existing Capacitor config files to avoid TypeScript compilation errors

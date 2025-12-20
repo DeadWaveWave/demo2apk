@@ -12,6 +12,7 @@ export interface BuildJobData {
   appId?: string;
   appVersion?: string;  // App version (e.g., "1.0.0")
   iconPath?: string;  // Custom icon path (optional)
+  permissions?: string[];  // Custom Android permissions (optional)
   outputDir: string;
   createdAt: string;
   zipProjectRoot?: string;  // Root directory inside ZIP (for nested projects)
@@ -75,11 +76,11 @@ export async function addBuildJob(
   data: BuildJobData
 ): Promise<Job<BuildJobData, BuildJobResult>> {
   const queue = getBuildQueue(redisUrl);
-  
+
   const job = await queue.add(data.taskId, data, {
     jobId: data.taskId,
   });
-  
+
   return job;
 }
 
@@ -118,7 +119,7 @@ export async function getJobPosition(
 ): Promise<number> {
   const queue = getBuildQueue(redisUrl);
   const waitingJobs = await queue.getWaiting(0, 100); // Get first 100 waiting jobs
-  
+
   const position = waitingJobs.findIndex(job => job.id === taskId);
   return position === -1 ? 0 : position + 1; // 1-based position
 }
@@ -140,7 +141,7 @@ export async function getJobStatus(
   queueTotal?: number;
 }> {
   const job = await getJob(redisUrl, taskId);
-  
+
   if (!job) {
     return { status: 'not_found' };
   }
@@ -212,13 +213,13 @@ export async function getJobStatus(
  */
 export async function removeJob(redisUrl: string, taskId: string): Promise<boolean> {
   const job = await getJob(redisUrl, taskId);
-  
+
   if (!job) {
     return false;
   }
 
   const state = await job.getState();
-  
+
   // Can only remove completed, failed, or waiting jobs
   if (state === 'active') {
     return false;
@@ -237,7 +238,7 @@ export function createBuildWorker(
   logger?: Logger
 ): Worker<BuildJobData, BuildJobResult> {
   const connection = getRedisConnection(redisUrl);
-  
+
   const worker = new Worker<BuildJobData, BuildJobResult>(
     'build',
     processor,
@@ -307,7 +308,7 @@ export async function closeConnections(): Promise<void> {
     await buildQueue.close();
     buildQueue = null;
   }
-  
+
   if (redisConnection) {
     redisConnection.disconnect();
     redisConnection = null;

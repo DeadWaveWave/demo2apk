@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 
 export default function GuideSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(true)
+  const isZh = i18n.language.startsWith('zh')
 
   return (
     <div className="mb-6 border border-bp-blue/30 bg-bp-dark/50 overflow-hidden relative group">
@@ -12,7 +13,7 @@ export default function GuideSection() {
       <div className="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-bp-blue/50" />
 
       {/* Header / Toggle Bar */}
-      <button 
+      <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-3 bg-bp-blue/5 hover:bg-bp-blue/10 transition-colors border-b border-bp-blue/20"
       >
@@ -24,10 +25,10 @@ export default function GuideSection() {
         </div>
         <div className="flex items-center gap-2 text-bp-dim text-xs font-mono">
           <span className="hidden md:inline">{isExpanded ? t('guide.collapse', '[COLLAPSE]') : t('guide.expand', '[EXPAND]')}</span>
-          <svg 
-            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
-            fill="none" 
-            viewBox="0 0 24 24" 
+          <svg
+            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
             stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -37,10 +38,10 @@ export default function GuideSection() {
 
       {/* Content Area */}
       <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          
+        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-4">
+
           {/* Intro Text */}
-          <div className="md:col-span-3 text-center mb-2">
+          <div className="md:col-span-2 lg:col-span-4 text-center mb-2">
             <p className="text-bp-text text-sm md:text-base font-mono">
               {t('guide.intro', 'Turn your HTML, React, or Vite projects into installable Android APKs in seconds. No coding required.')}
             </p>
@@ -88,6 +89,22 @@ export default function GuideSection() {
             <div className="mt-3 flex gap-2 flex-wrap">
               <span className="px-1.5 py-0.5 bg-bp-orange/10 text-bp-orange text-[10px] font-mono border border-bp-orange/20">project.zip</span>
               <span className="px-1.5 py-0.5 bg-bp-orange/10 text-bp-orange text-[10px] font-mono border border-bp-orange/20">Assets</span>
+            </div>
+          </div>
+
+          {/* Permissions Guide */}
+          <div className="bg-bp-dark border border-bp-grid p-3 md:p-4 relative hover:border-bp-green/50 transition-colors group/card">
+            <div className="text-bp-green text-xs font-mono mb-2 uppercase tracking-wider border-b border-bp-green/20 pb-1 flex justify-between">
+              <span>{t('guide.permissions_title', 'PERMISSIONS')}</span>
+              <span className="text-bp-green/50 group-hover/card:text-bp-green">⚙️</span>
+            </div>
+            <p className="text-bp-dim text-xs leading-relaxed">
+              {t('guide.permissions_desc', 'Configure Android permissions in Advanced Settings (optional, defaults to INTERNET access).')}
+            </p>
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <span className="px-1.5 py-0.5 bg-bp-green/10 text-bp-green text-[10px] font-mono border border-bp-green/20">{isZh ? '网络' : 'Network'}</span>
+              <span className="px-1.5 py-0.5 bg-bp-green/10 text-bp-green text-[10px] font-mono border border-bp-green/20">{isZh ? '相机' : 'Camera'}</span>
+              <span className="px-1.5 py-0.5 bg-bp-green/10 text-bp-green text-[10px] font-mono border border-bp-green/20">{isZh ? '存储' : 'Storage'}</span>
             </div>
           </div>
 

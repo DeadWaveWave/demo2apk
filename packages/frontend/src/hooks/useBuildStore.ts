@@ -16,10 +16,10 @@ interface BuildState {
   queuePosition: number | null
   queueTotal: number | null
   isRestoring: boolean
-  
+
   // Actions
-  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string) => Promise<void>
-  startCodeBuild: (code: string, appName: string, iconFile?: File, appVersion?: string) => Promise<void>
+  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[]) => Promise<void>
+  startCodeBuild: (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[]) => Promise<void>
   restoreFromTaskId: (taskId: string) => Promise<void>
   reset: () => void
 }
@@ -55,10 +55,10 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   queueTotal: null,
   isRestoring: false,
 
-  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string) => {
-    set({ 
-      status: 'uploading', 
-      progress: 0, 
+  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[]) => {
+    set({
+      status: 'uploading',
+      progress: 0,
       logs: [],
       fileName: file.name,
       error: null,
@@ -79,11 +79,14 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       if (appVersion) {
         formData.append('appVersion', appVersion)
       }
+      if (permissions && permissions.length > 0) {
+        formData.append('permissions', JSON.stringify(permissions))
+      }
 
       const uploadUrl = type === 'html' ? '/api/build/html' : '/api/build/zip'
-      
+
       set({ logs: ['> INITIATING UPLOAD SEQUENCE...'] })
-      
+
       const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
@@ -91,12 +94,12 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        
+
         // Handle rate limit error specifically
         if (response.status === 429) {
           throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
         }
-        
+
         throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
       }
 
@@ -115,14 +118,14 @@ export const useBuildStore = create<BuildState>((set, get) => ({
         createdAt: new Date().toISOString(),
       })
 
-      set({ 
+      set({
         taskId,
         status: 'building',
         progress: 5,
         logs: [
-          ...get().logs, 
-          '> UPLOAD COMPLETE.', 
-          `> TASK ID: ${taskId}`, 
+          ...get().logs,
+          '> UPLOAD COMPLETE.',
+          `> TASK ID: ${taskId}`,
           '> INITIALIZING BUILD SUBSYSTEM...'
         ],
       })
@@ -131,8 +134,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       await pollBuildStatus(taskId, set, get)
 
     } catch (error) {
-      set({ 
-        status: 'error', 
+      set({
+        status: 'error',
         error: error instanceof Error ? error.message : 'UNKNOWN ERROR',
         logs: [...get().logs, `[FATAL ERROR] ${error instanceof Error ? error.message : 'UNKNOWN ERROR'}`],
       })
@@ -140,10 +143,10 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   },
 
   // Start build from pasted code (with auto-detection)
-  startCodeBuild: async (code: string, appName: string, iconFile?: File, appVersion?: string) => {
-    set({ 
-      status: 'uploading', 
-      progress: 0, 
+  startCodeBuild: async (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[]) => {
+    set({
+      status: 'uploading',
+      progress: 0,
       logs: [],
       fileName: `${appName}.tsx`,
       error: null,
@@ -161,9 +164,12 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       if (appVersion) {
         formData.append('appVersion', appVersion)
       }
-      
+      if (permissions && permissions.length > 0) {
+        formData.append('permissions', JSON.stringify(permissions))
+      }
+
       set({ logs: ['> ANALYZING CODE TYPE...', '> INITIATING UPLOAD SEQUENCE...'] })
-      
+
       const response = await fetch('/api/build/code', {
         method: 'POST',
         body: formData,
@@ -171,11 +177,11 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        
+
         if (response.status === 429) {
           throw new Error(errorData.message || '构建次数已达上限，请稍后再试')
         }
-        
+
         throw new Error(errorData.message || `UPLOAD FAILED: ${response.status}`)
       }
 
@@ -194,21 +200,21 @@ export const useBuildStore = create<BuildState>((set, get) => ({
         createdAt: new Date().toISOString(),
       })
 
-      const detectedTypeMsg = data.detectedType === 'react-component' 
+      const detectedTypeMsg = data.detectedType === 'react-component'
         ? '> DETECTED: REACT COMPONENT'
         : data.detectedType === 'html-react'
-        ? '> DETECTED: HTML + REACT (BABEL)'
-        : '> DETECTED: HTML'
+          ? '> DETECTED: HTML + REACT (BABEL)'
+          : '> DETECTED: HTML'
 
-      set({ 
+      set({
         taskId,
         status: 'building',
         progress: 5,
         logs: [
-          ...get().logs, 
+          ...get().logs,
           detectedTypeMsg,
-          '> UPLOAD COMPLETE.', 
-          `> TASK ID: ${taskId}`, 
+          '> UPLOAD COMPLETE.',
+          `> TASK ID: ${taskId}`,
           '> INITIALIZING BUILD SUBSYSTEM...'
         ],
       })
@@ -217,8 +223,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       await pollBuildStatus(taskId, set, get)
 
     } catch (error) {
-      set({ 
-        status: 'error', 
+      set({
+        status: 'error',
         error: error instanceof Error ? error.message : 'UNKNOWN ERROR',
         logs: [...get().logs, `[FATAL ERROR] ${error instanceof Error ? error.message : 'UNKNOWN ERROR'}`],
       })
@@ -245,7 +251,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   reset: () => {
     // Clear URL parameter
     updateUrlWithTaskId(null)
-    
+
     set({
       status: 'idle',
       progress: 0,
@@ -264,7 +270,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 }))
 
 async function pollBuildStatus(
-  taskId: string, 
+  taskId: string,
   set: (state: Partial<BuildState>) => void,
   get: () => BuildState
 ) {
@@ -274,7 +280,7 @@ async function pollBuildStatus(
   while (attempts < maxAttempts) {
     try {
       const response = await fetch(`/api/build/${taskId}/status`)
-      
+
       if (!response.ok) {
         // Handle 404 - task not found (expired or invalid)
         if (response.status === 404) {
@@ -295,15 +301,15 @@ async function pollBuildStatus(
       const newLogs = [...get().logs]
       const expiresAt = data.expiresAt || null
       const retentionHours = typeof data.retentionHours === 'number' ? data.retentionHours : null
-      
+
       // Get fileName from API response (backend returns appName as fileName)
       const serverFileName = data.fileName || get().fileName
-      
+
       // Update fileName if we got it from server (important for restored sessions)
       if (data.fileName && !get().fileName) {
         set({ fileName: data.fileName })
       }
-      
+
       // Update Logs
       if (data.progress?.message) {
         const logMsg = `> ${data.progress.message.toUpperCase()}`
@@ -316,10 +322,10 @@ async function pollBuildStatus(
       if (data.status === 'completed') {
         newLogs.push('> BUILD SEQUENCE COMPLETE.')
         newLogs.push('> PACKAGE READY FOR EXTRACTION.')
-        
+
         // Update history with completed status
         updateBuildStatus(taskId, 'completed', expiresAt || undefined)
-        
+
         set({
           status: 'completed',
           progress: 100,
@@ -333,10 +339,10 @@ async function pollBuildStatus(
       } else if (data.status === 'failed') {
         const errorMsg = `[SYSTEM FAILURE] ${data.error || 'UNKNOWN ERROR'}`
         newLogs.push(errorMsg)
-        
+
         // Update history with failed status
         updateBuildStatus(taskId, 'failed')
-        
+
         set({
           status: 'error',
           error: data.error || 'BUILD FAILED',
@@ -349,23 +355,23 @@ async function pollBuildStatus(
         // Queued - waiting in line
         const queuePosition = data.queuePosition || null
         const queueTotal = data.queueTotal || null
-        
+
         // Always update queue position in logs with latest values
         // Remove any old queue position logs first
         const filteredLogs = newLogs.filter(log => !log.includes('QUEUE POSITION:'))
-        
+
         // Add current queue info
         if (queuePosition) {
-          const queueMsg = queueTotal 
+          const queueMsg = queueTotal
             ? `> QUEUE POSITION: ${queuePosition}/${queueTotal}`
             : `> QUEUE POSITION: ${queuePosition}`
           filteredLogs.push(queueMsg)
         }
-        
+
         newLogs.length = 0
         newLogs.push(...filteredLogs)
 
-        set({ 
+        set({
           status: 'queued',
           progress: 5, // Fixed progress for queued state
           logs: newLogs,
@@ -378,18 +384,18 @@ async function pollBuildStatus(
         // Active - building
         let currentProgress = get().progress
         let serverProgress = data.progress?.percent || 0
-        
+
         // Ensure progress never goes backwards
         let nextProgress = Math.max(currentProgress, serverProgress)
-        
+
         // Minimum 10% when actively building
         if (nextProgress < 10) {
           nextProgress = 10
         }
 
-        set({ 
+        set({
           status: 'building',
-          progress: nextProgress, 
+          progress: nextProgress,
           logs: newLogs,
           queuePosition: null,
           queueTotal: null,

@@ -6,9 +6,9 @@ import { addBuildJob, BuildJobData } from '../services/queue.js';
 import { saveUploadedFile, initStorage } from '../services/storage.js';
 import type { ServerConfig } from '../index.js';
 import type { Logger } from '../utils/logger.js';
-import { 
-  detectCodeType, 
-  wrapReactComponent, 
+import {
+  detectCodeType,
+  wrapReactComponent,
   createProjectZip,
   detectZipProjectType,
   getZipProjectTypeLabel,
@@ -23,6 +23,7 @@ interface BuildRequestBody {
   appName?: string;
   appId?: string;
   appVersion?: string;
+  permissions?: string[];  // Custom Android permissions
 }
 
 /**
@@ -36,7 +37,7 @@ function validateVersion(version: string): boolean {
 
 export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify, options) => {
   const { config } = options;
-  
+
   // Initialize storage
   await initStorage({ buildsDir: config.buildsDir });
 
@@ -67,6 +68,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let appName = '';
     let appId: string | undefined;
     let appVersion: string | undefined;
+    let permissions: string[] | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -98,6 +100,19 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
             }
             appVersion = versionValue;
           }
+        } else if (part.fieldname === 'permissions') {
+          // Parse permissions as JSON array or comma-separated string
+          const permValue = String(part.value || '').trim();
+          if (permValue) {
+            try {
+              // Try parsing as JSON first
+              const parsed = JSON.parse(permValue);
+              permissions = Array.isArray(parsed) ? parsed : [permValue];
+            } catch {
+              // Fall back to comma-separated
+              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+            }
+          }
         }
       }
     }
@@ -113,7 +128,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     const filename = htmlFile.filename.toLowerCase();
     const validExtensions = ['.html', '.htm', '.js', '.jsx', '.ts', '.tsx'];
     const hasValidExtension = validExtensions.some(ext => filename.endsWith(ext));
-    
+
     if (!hasValidExtension) {
       return reply.status(400).send({
         error: 'Bad Request',
@@ -144,11 +159,11 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     try {
       let filePath: string;
       let buildType: 'html' | 'zip' = 'html';
-      
+
       // If content is a React component, wrap it into a project
       if (detection.type === 'react-component' && detection.confidence >= 50) {
         logger.info('Wrapping React component from uploaded file', { taskId, appName });
-        
+
         // Normalize appName / appId for React project
         const identity = resolveAppIdentityFromUpload(appName, appId, htmlFile.filename, 'ReactApp');
         appName = identity.appName;
@@ -176,13 +191,13 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       } else {
         // Save as HTML file
         filePath = await saveUploadedFile(
-        htmlFile.buffer,
-          htmlFile.filename.endsWith('.html') || htmlFile.filename.endsWith('.htm') 
-            ? htmlFile.filename 
+          htmlFile.buffer,
+          htmlFile.filename.endsWith('.html') || htmlFile.filename.endsWith('.htm')
+            ? htmlFile.filename
             : `${uploadedBaseName}.html`,
-        taskId,
-        { buildsDir: config.buildsDir }
-      );
+          taskId,
+          { buildsDir: config.buildsDir }
+        );
       }
 
       // Save icon file if provided
@@ -205,6 +220,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         appId,
         appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
+        permissions,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
       };
@@ -212,9 +228,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      logger.buildCreated(taskId, appName, buildType, { 
-        fileSize, 
-        appId, 
+      logger.buildCreated(taskId, appName, buildType, {
+        fileSize,
+        appId,
         hasIcon: !!iconPath,
         detectedType: detection.type,
         confidence: detection.confidence,
@@ -255,6 +271,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let appName = '';
     let appId: string | undefined;
     let appVersion: string | undefined;
+    let permissions: string[] | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -285,6 +302,16 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
               });
             }
             appVersion = versionValue;
+          }
+        } else if (part.fieldname === 'permissions') {
+          const permValue = String(part.value || '').trim();
+          if (permValue) {
+            try {
+              const parsed = JSON.parse(permValue);
+              permissions = Array.isArray(parsed) ? parsed : [permValue];
+            } catch {
+              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+            }
           }
         }
       }
@@ -331,33 +358,33 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         { buildsDir: config.buildsDir }
       );
 
-    // Detect ZIP content type
-    const zipDetection = await detectZipProjectType(filePath);
-      
-    // 精简版：生产环境主要关注类型与置信度
-    logger.info('ZIP content type detected', {
-      taskId,
-      appName,
-      fileName: zipFile.filename,
-      fileSize,
-      projectType: zipDetection.type,
-      confidence: zipDetection.confidence,
-      hasIcon: !!iconFile,
-    });
+      // Detect ZIP content type
+      const zipDetection = await detectZipProjectType(filePath);
 
-    // 详细调试信息仅在需要时查看（debug 级别）
-    logger.debug('ZIP content analysis details', {
-      taskId,
-      projectRoot: zipDetection.projectRoot,
-      hasPackageJson: zipDetection.hasPackageJson,
-      hasIndexHtml: zipDetection.hasIndexHtml,
-      fileCount: zipDetection.fileCount,
-      hints: zipDetection.hints,
-    });
+      // 精简版：生产环境主要关注类型与置信度
+      logger.info('ZIP content type detected', {
+        taskId,
+        appName,
+        fileName: zipFile.filename,
+        fileSize,
+        projectType: zipDetection.type,
+        confidence: zipDetection.confidence,
+        hasIcon: !!iconFile,
+      });
+
+      // 详细调试信息仅在需要时查看（debug 级别）
+      logger.debug('ZIP content analysis details', {
+        taskId,
+        projectRoot: zipDetection.projectRoot,
+        hasPackageJson: zipDetection.hasPackageJson,
+        hasIndexHtml: zipDetection.hasIndexHtml,
+        fileCount: zipDetection.fileCount,
+        hints: zipDetection.hints,
+      });
 
       // Determine build type based on detection
       let buildType: 'zip' | 'html-project';
-      
+
       if (zipDetection.type === 'react-project') {
         // React/Vite project - needs npm build
         buildType = 'zip';
@@ -389,6 +416,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         appId,
         appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
+        permissions,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
         // Pass detection metadata for worker
@@ -398,9 +426,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       // Add to queue
       await addBuildJob(config.redisUrl, jobData);
 
-      logger.buildCreated(taskId, appName, buildType, { 
-        fileSize, 
-        appId, 
+      logger.buildCreated(taskId, appName, buildType, {
+        fileSize,
+        appId,
         hasIcon: !!iconPath,
         detectedZipType: zipDetection.type,
         confidence: zipDetection.confidence,
@@ -443,6 +471,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     let appName = '';
     let appId: string | undefined;
     let appVersion: string | undefined;
+    let permissions: string[] | undefined;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -475,6 +504,16 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
             }
             appVersion = versionValue;
           }
+        } else if (part.fieldname === 'permissions') {
+          const permValue = String(part.value || '').trim();
+          if (permValue) {
+            try {
+              const parsed = JSON.parse(permValue);
+              permissions = Array.isArray(parsed) ? parsed : [permValue];
+            } catch {
+              permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
+            }
+          }
         }
       }
     }
@@ -488,7 +527,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
     // Detect code type
     const detection = detectCodeType(codeContent);
-    
+
     // 精简版：只记录核心信息
     logger.info('Code received for analysis', {
       taskId,
@@ -512,7 +551,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       if (detection.type === 'react-component' && detection.confidence >= 50) {
         // Wrap React component into a full project
         logger.info('Wrapping React component into project', { taskId, appName });
-        
+
         const identity = resolveAppIdentityFromCode(appName, appId, 'ReactApp');
         appName = identity.appName;
         appId = identity.appId;
@@ -570,6 +609,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         appId,
         appVersion: appVersion || '1.0.0', // Default to 1.0.0 if not provided
         iconPath,
+        permissions,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
       };

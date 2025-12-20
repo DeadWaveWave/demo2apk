@@ -3,6 +3,8 @@ import { useDropzone } from 'react-dropzone'
 import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
 import { detectCodeType, getCodeTypeLabel, getCodeTypeColor, type DetectionResult } from '../utils/codeDetector'
+import PermissionSelector from './PermissionSelector'
+import { DEFAULT_PERMISSIONS } from '../utils/permissions'
 
 type BuildType = 'html' | 'html-paste' | 'zip'
 
@@ -18,13 +20,17 @@ export default function UploadZone() {
   const iconInputRef = useRef<HTMLInputElement>(null)
   const { startBuild, startCodeBuild } = useBuildStore()
   const { t } = useTranslation()
-  
+
+  // Permissions state
+  const [permissions, setPermissions] = useState<string[]>([...DEFAULT_PERMISSIONS])
+  const [permissionsExpanded, setPermissionsExpanded] = useState(false)
+
   // Code type detection result (memoized for performance)
   const codeDetection: DetectionResult | null = useMemo(() => {
     if (buildType !== 'html-paste' || !htmlCode.trim()) return null
     return detectCodeType(htmlCode)
   }, [buildType, htmlCode])
-  
+
   // Auto-fill app name from detected React component name
   // useEffect(() => {
   //   if (codeDetection?.appNameHint && !appName) {
@@ -87,13 +93,13 @@ export default function UploadZone() {
   // Handle version input change with validation
   const handleVersionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    
+
     // Only allow digits and dots
     let sanitized = value.replace(/[^\d.]/g, '')
-    
+
     // Prevent multiple consecutive dots
     sanitized = sanitized.replace(/\.{2,}/g, '.')
-    
+
     // Prevent starting or ending with a dot
     if (sanitized.startsWith('.')) {
       sanitized = sanitized.substring(1)
@@ -101,7 +107,7 @@ export default function UploadZone() {
     if (sanitized.endsWith('.')) {
       sanitized = sanitized.substring(0, sanitized.length - 1)
     }
-    
+
     // Limit dots to maximum 2 (for x.x.x format)
     const dotCount = (sanitized.match(/\./g) || []).length
     if (dotCount > 2) {
@@ -109,11 +115,11 @@ export default function UploadZone() {
       const parts = sanitized.split('.')
       sanitized = parts.slice(0, 3).join('.')
     }
-    
+
     // Limit to reasonable length (e.g., "999.999.999" = 11 chars)
     if (sanitized.length <= 11) {
       setAppVersion(sanitized)
-      
+
       // Validate format only if user has typed something
       if (sanitized) {
         if (!validateVersion(sanitized)) {
@@ -145,39 +151,39 @@ export default function UploadZone() {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
       const finalAppName = useFileName ? getAppNameFromFile(file.name) : (appName || undefined)
-      
+
       // Validate version before proceeding
       const finalVersion = appVersion.trim() || '1.0.0'
       if (!validateVersion(finalVersion)) {
         setVersionError(t('upload.versionFormatError', '格式错误：必须是 x.x.x（如 1.0.0）'))
         return
       }
-      
+
       if (buildType === 'zip') {
         // ZIP files go directly to React builder
-        startBuild(file, 'zip', finalAppName, iconFile || undefined, finalVersion)
+        startBuild(file, 'zip', finalAppName, iconFile || undefined, finalVersion, permissions)
         return
       }
-      
+
       // For non-ZIP files, read content and detect type
       try {
         const content = await file.text()
         const detection = detectCodeType(content)
-        
+
         // If it's a React component (regardless of file extension), use code endpoint
         if (detection.type === 'react-component' && detection.confidence >= 50) {
           const name = finalAppName || detection.appNameHint || 'App'
-          startCodeBuild(content, name, iconFile || undefined, finalVersion)
+          startCodeBuild(content, name, iconFile || undefined, finalVersion, permissions)
         } else {
           // HTML or HTML-React, use traditional HTML build
-          startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion)
+          startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions)
         }
       } catch {
         // If reading fails, fall back to traditional build
-        startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion)
+        startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions)
       }
     }
-  }, [buildType, appName, useFileName, iconFile, appVersion, startBuild, startCodeBuild])
+  }, [buildType, appName, useFileName, iconFile, appVersion, permissions, startBuild, startCodeBuild])
 
   const handleHtmlCodeSubmit = useCallback(async () => {
     // Paste mode requires both code and app name
@@ -191,18 +197,18 @@ export default function UploadZone() {
     }
 
     // Use the new unified code endpoint that auto-detects type
-    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined, finalVersion)
-  }, [htmlCode, appName, iconFile, appVersion, startCodeBuild, t])
+    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined, finalVersion, permissions)
+  }, [htmlCode, appName, iconFile, appVersion, permissions, startCodeBuild, t])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: buildType === 'html'
-      ? { 
-          'text/html': ['.html', '.htm'],
-          'text/javascript': ['.js', '.jsx'],
-          'text/typescript': ['.ts', '.tsx'],
-          'application/javascript': ['.js', '.jsx'],
-        }
+      ? {
+        'text/html': ['.html', '.htm'],
+        'text/javascript': ['.js', '.jsx'],
+        'text/typescript': ['.ts', '.tsx'],
+        'application/javascript': ['.js', '.jsx'],
+      }
       : { 'application/zip': ['.zip'] },
     maxFiles: 1,
     maxSize: 30 * 1024 * 1024, // 30MB
@@ -302,24 +308,19 @@ export default function UploadZone() {
           <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-purple z-10">
             {t('upload.versionLabel', 'VERSION')}
           </div>
-          <div className={`relative border transition-colors ${
-            versionError 
-              ? 'border-red-500/50 hover:border-red-500/70' 
-              : 'border-bp-grid hover:border-bp-purple/50'
-          }`}>
+          <div className={`relative border transition-colors ${versionError
+            ? 'border-red-500/50 hover:border-red-500/70'
+            : 'border-bp-grid hover:border-bp-purple/50'
+            }`}>
             {/* Corner decorations */}
-            <div className={`absolute top-0 left-0 w-2 h-2 border-t border-l ${
-              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
-            }`} />
-            <div className={`absolute top-0 right-0 w-2 h-2 border-t border-r ${
-              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
-            }`} />
-            <div className={`absolute bottom-0 left-0 w-2 h-2 border-b border-l ${
-              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
-            }`} />
-            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r ${
-              versionError ? 'border-red-500/50' : 'border-bp-purple/50'
-            }`} />
+            <div className={`absolute top-0 left-0 w-2 h-2 border-t border-l ${versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+              }`} />
+            <div className={`absolute top-0 right-0 w-2 h-2 border-t border-r ${versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+              }`} />
+            <div className={`absolute bottom-0 left-0 w-2 h-2 border-b border-l ${versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+              }`} />
+            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r ${versionError ? 'border-red-500/50' : 'border-bp-purple/50'
+              }`} />
 
             <input
               type="text"
@@ -337,11 +338,10 @@ export default function UploadZone() {
                 }
               }}
               placeholder="1.0.0"
-              className={`w-full bg-bp-dark/50 p-3 md:p-4 font-mono text-sm md:text-lg focus:outline-none transition-colors placeholder-bp-purple/30 h-[60px] md:h-[72px] ${
-                versionError
-                  ? 'border-red-500/50 text-red-400 focus:border-red-500 focus:bg-red-500/5'
-                  : 'border-bp-purple/50 text-bp-purple focus:border-bp-purple focus:bg-bp-purple/5'
-              }`}
+              className={`w-full bg-bp-dark/50 p-3 md:p-4 font-mono text-sm md:text-lg focus:outline-none transition-colors placeholder-bp-purple/30 h-[60px] md:h-[72px] ${versionError
+                ? 'border-red-500/50 text-red-400 focus:border-red-500 focus:bg-red-500/5'
+                : 'border-bp-purple/50 text-bp-purple focus:border-bp-purple focus:bg-bp-purple/5'
+                }`}
             />
           </div>
           {/* Helper text / Error message */}
@@ -426,6 +426,16 @@ export default function UploadZone() {
             PNG / JPG &lt; 2MB
           </div>
         </div>
+      </div>
+
+      {/* Permissions Selector */}
+      <div className="mt-6">
+        <PermissionSelector
+          value={permissions}
+          onChange={setPermissions}
+          expanded={permissionsExpanded}
+          onToggleExpanded={() => setPermissionsExpanded(!permissionsExpanded)}
+        />
       </div>
 
       <div className="flex items-center justify-between mb-1 md:mb-2 pt-2 md:pt-4 border-t border-bp-grid/30">
@@ -523,10 +533,10 @@ export default function UploadZone() {
                   {codeDetection.confidence >= 50 && ' ✓'}
                 </span>
               )}
-            <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
+              <span className="text-bp-cyan/70">{t('upload.htmlSupport')}</span>
             </div>
           </div>
-          
+
           {/* React Component Detection Info */}
           {codeDetection?.type === 'react-component' && codeDetection.confidence >= 50 && (
             <div className="border border-green-500/30 bg-green-500/5 p-3 rounded relative">
@@ -534,7 +544,7 @@ export default function UploadZone() {
               <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-green-500/50" />
               <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-green-500/50" />
               <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-green-500/50" />
-              
+
               <div className="flex items-start gap-2">
                 <span className="text-green-400 text-base flex-shrink-0">⚛️</span>
                 <div className="text-xs font-mono text-bp-dim space-y-1">
@@ -593,7 +603,7 @@ export default function UploadZone() {
 
           {/* Spec Label */}
           <div className="absolute bottom-4 right-4 font-mono text-[10px] text-bp-dim bg-bp-dark px-2 border border-bp-grid">
-            {buildType === 'html' 
+            {buildType === 'html'
               ? t('upload.maxSizeLabelCode', { formats: 'HTML/JS/JSX/TSX' })
               : t('upload.maxSizeLabel', { format: 'ZIP' })}
           </div>

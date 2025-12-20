@@ -8,6 +8,7 @@ import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
 import { generateAppId, ensureGradleWrapper } from './html-builder.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
+import { getFullPermissionName, validatePermissions } from '../utils/android-permissions.js';
 
 /**
  * Calculate optimal Node.js memory limit based on container memory.
@@ -157,6 +158,7 @@ export interface ReactBuildOptions {
   outputDir?: string;
   iconPath?: string;  // Custom icon path (optional)
   taskId?: string;    // Task ID for unique file naming (prevents concurrent build conflicts)
+  permissions?: string[];  // Custom Android permissions (optional)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -334,6 +336,78 @@ configurations.configureEach {
   onProgress?.('Adjusted Gradle config to avoid Kotlin stdlib duplicates', progressPercent);
 }
 
+/**
+ * Inject Android permissions into Capacitor Android project
+ * This directly modifies the AndroidManifest.xml file
+ */
+async function injectPermissionsCapacitor(
+  androidDir: string,
+  permissions: string[],
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
+): Promise<void> {
+  if (!permissions || permissions.length === 0) {
+    return;
+  }
+
+  // Validate permissions
+  const { valid: validPermissions, invalid: invalidPermissions } = validatePermissions(permissions);
+
+  if (invalidPermissions.length > 0) {
+    onProgress?.(`Warning: Ignored invalid permissions: ${invalidPermissions.join(', ')}`, progressPercent);
+  }
+
+  if (validPermissions.length === 0) {
+    return;
+  }
+
+  onProgress?.(`Injecting ${validPermissions.length} custom permissions...`, progressPercent);
+
+  const manifestPath = path.join(androidDir, 'app', 'src', 'main', 'AndroidManifest.xml');
+  if (!(await fs.pathExists(manifestPath))) {
+    return;
+  }
+
+  let manifestContent = await fs.readFile(manifestPath, 'utf8');
+
+  // Check if already injected
+  if (manifestContent.includes('<!-- Demo2APK Custom Permissions -->')) {
+    return;
+  }
+
+  // Build permission XML elements
+  const permissionElements = validPermissions
+    .map(perm => {
+      const fullPerm = getFullPermissionName(perm);
+      // Check if this permission already exists
+      if (manifestContent.includes(`android:name="${fullPerm}"`)) {
+        return null; // Skip existing permissions
+      }
+      return `    <uses-permission android:name="${fullPerm}" />`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  if (!permissionElements) {
+    return; // All permissions already exist
+  }
+
+  // Insert permissions after <manifest ...> opening tag
+  const permissionBlock = `\n    <!-- Demo2APK Custom Permissions -->\n${permissionElements}\n`;
+
+  // Find the position after the manifest opening tag
+  const manifestTagMatch = manifestContent.match(/<manifest[^>]*>/);
+  if (manifestTagMatch) {
+    const insertPos = manifestTagMatch.index! + manifestTagMatch[0].length;
+    manifestContent =
+      manifestContent.slice(0, insertPos) +
+      permissionBlock +
+      manifestContent.slice(insertPos);
+
+    await fs.writeFile(manifestPath, manifestContent);
+  }
+}
+
 export async function buildReactToApk(options: ReactBuildOptions): Promise<BuildResult> {
   const startTime = Date.now();
   const {
@@ -345,6 +419,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,
+    permissions,
     onProgress,
   } = options;
 
@@ -577,6 +652,12 @@ export default config;
     onProgress?.('Injecting app icon...', 75);
     const androidDir = path.join(projectDir, 'android');
     await injectIconCapacitor(androidDir, iconPath, onProgress, 75);
+
+    // Inject custom permissions (if any)
+    if (permissions && permissions.length > 0) {
+      onProgress?.('Configuring app permissions...', 76);
+      await injectPermissionsCapacitor(androidDir, permissions, onProgress, 76);
+    }
 
     // Ensure Gradle wrapper exists (script + wrapper JAR). Some templates may
     // ship an incomplete wrapper, which would cause "GradleWrapperMain not found".

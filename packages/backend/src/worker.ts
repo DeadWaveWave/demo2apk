@@ -37,7 +37,7 @@ const FILE_CLEANUP_INTERVAL_MINUTES = parseInt(process.env.FILE_CLEANUP_INTERVAL
  * Process a build job
  */
 async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<BuildJobResult> {
-  const { type, filePath, appName, appId, appVersion, iconPath, outputDir, taskId, zipProjectRoot } = job.data;
+  const { type, filePath, appName, appId, appVersion, iconPath, permissions, outputDir, taskId, zipProjectRoot } = job.data;
   const startTime = Date.now();
 
   // 为此任务创建子 Logger
@@ -101,6 +101,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         appId,
         appVersion: appVersion || '1.0.0',
         iconPath,
+        permissions,
         outputDir,
         taskId,  // Pass taskId for unique APK filename
         onProgress,
@@ -112,6 +113,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         appId,
         appVersion: appVersion || '1.0.0',
         iconPath,
+        permissions,
         outputDir,
         taskId,  // Pass taskId for unique APK filename
         onProgress,
@@ -125,6 +127,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         appId,
         appVersion: appVersion || '1.0.0',
         iconPath,
+        permissions,
         outputDir,
         taskId,
         onProgress,

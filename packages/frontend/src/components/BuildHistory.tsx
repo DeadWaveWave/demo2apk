@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import CornerFrame from './CornerFrame'
 import { 
   getBuildHistory, 
   removeBuildFromHistory, 
@@ -84,12 +85,11 @@ export default function BuildHistory({ onRestore }: BuildHistoryProps) {
   }
 
   return (
-    <div className="mt-8 border border-violet-500/40 bg-violet-500/5 relative">
-      {/* Corner decorations */}
-      <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-violet-500" />
-      <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-violet-500" />
-      <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-violet-500" />
-      <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-violet-500" />
+    <CornerFrame
+      className="mt-8 border border-violet-500/40 bg-violet-500/5"
+      cornerClassName="border-violet-500"
+      cornerSizeClassName="w-2 h-2"
+    >
       
       {/* Header */}
       <button
@@ -189,7 +189,6 @@ export default function BuildHistory({ onRestore }: BuildHistoryProps) {
           </div>
         </div>
       )}
-    </div>
+    </CornerFrame>
   )
 }
-

@@ -62,3 +62,14 @@ export {
   type ZipProjectType,
   type ZipDetectionResult,
 } from './utils/zip-detector.js';
+
+// Android Permissions
+export {
+  ANDROID_PERMISSIONS,
+  PERMISSION_CATEGORIES,
+  PERMISSION_METADATA,
+  DEFAULT_PERMISSIONS,
+  validatePermissions,
+  getFullPermissionName,
+  getAvailablePermissions,
+} from './utils/android-permissions.js';

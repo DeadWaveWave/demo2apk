@@ -8,6 +8,7 @@ import { pinyin } from 'pinyin-pro';
 import { detectAndroidSdk, setupAndroidEnv, detectCordova } from '../utils/android-sdk.js';
 import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
+import { getFullPermissionName, DEFAULT_PERMISSIONS, validatePermissions } from '../utils/android-permissions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,6 +31,7 @@ export interface HtmlBuildOptions {
   skipOfflineify?: boolean;
   iconPath?: string;  // Custom icon path (optional)
   taskId?: string;    // Task ID for unique file naming
+  permissions?: string[];  // Custom Android permissions (optional)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -42,6 +44,7 @@ export interface HtmlProjectBuildOptions {
   outputDir?: string;
   iconPath?: string;
   taskId?: string;
+  permissions?: string[];  // Custom Android permissions (optional)
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -148,6 +151,87 @@ ${iconConfigs}
       await fs.writeFile(configXmlPath, configContent);
     }
   }
+}
+
+/**
+ * Inject Android permissions into Cordova config.xml
+ * This adds custom permissions to the AndroidManifest.xml via config.xml
+ */
+async function injectPermissions(
+  workDir: string,
+  permissions: string[],
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
+): Promise<void> {
+  if (!permissions || permissions.length === 0) {
+    return;
+  }
+
+  // Validate permissions
+  const { valid: validPermissions, invalid: invalidPermissions } = validatePermissions(permissions);
+
+  if (invalidPermissions.length > 0) {
+    onProgress?.(`Warning: Ignored invalid permissions: ${invalidPermissions.join(', ')}`, progressPercent);
+  }
+
+  if (validPermissions.length === 0) {
+    return;
+  }
+
+  onProgress?.(`Injecting ${validPermissions.length} custom permissions...`, progressPercent);
+
+  const configXmlPath = path.join(workDir, 'config.xml');
+  if (!(await fs.pathExists(configXmlPath))) {
+    return;
+  }
+
+  let configContent = await fs.readFile(configXmlPath, 'utf8');
+
+  // Check if permissions are already configured
+  if (configContent.includes('<!-- Custom Permissions -->')) {
+    return;
+  }
+
+  // Build permission XML for Android platform
+  // Using edit-config to add uses-permission elements to AndroidManifest.xml
+  const permissionElements = validPermissions
+    .map(perm => {
+      const fullPerm = getFullPermissionName(perm);
+      return `            <uses-permission android:name="${fullPerm}" />`;
+    })
+    .join('\n');
+
+  // Check if there's already an Android platform section
+  const hasAndroidPlatform = configContent.includes('<platform name="android">');
+
+  if (hasAndroidPlatform) {
+    // Insert permissions config into existing Android platform section
+    const permissionConfig = `
+        <!-- Custom Permissions -->
+        <config-file parent="/manifest" target="AndroidManifest.xml" xmlns:android="http://schemas.android.com/apk/res/android">
+${permissionElements}
+        </config-file>`;
+
+    // Insert after <platform name="android">
+    configContent = configContent.replace(
+      /<platform name="android">/,
+      `<platform name="android">${permissionConfig}`
+    );
+  } else {
+    // Create new Android platform section with permissions
+    const platformSection = `
+    <platform name="android">
+        <!-- Custom Permissions -->
+        <config-file parent="/manifest" target="AndroidManifest.xml" xmlns:android="http://schemas.android.com/apk/res/android">
+${permissionElements}
+        </config-file>
+    </platform>`;
+
+    // Insert before closing </widget> tag
+    configContent = configContent.replace('</widget>', `${platformSection}\n</widget>`);
+  }
+
+  await fs.writeFile(configXmlPath, configContent);
 }
 
 /**
@@ -315,6 +399,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     outputDir = path.join(process.cwd(), 'builds'),
     skipOfflineify = false,
     iconPath,
+    permissions,
     onProgress,
   } = options;
 
@@ -387,8 +472,14 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     onProgress?.('Injecting app icon...', 42);
     await injectIcon(workDir, iconPath, onProgress, 42);
 
+    // Inject custom permissions (if any)
+    if (permissions && permissions.length > 0) {
+      onProgress?.('Configuring app permissions...', 43);
+      await injectPermissions(workDir, permissions, onProgress, 43);
+    }
+
     // Update config.xml with app version
-    onProgress?.('Setting app version...', 43);
+    onProgress?.('Setting app version...', 44);
     const configXmlPath = path.join(workDir, 'config.xml');
     if (await fs.pathExists(configXmlPath)) {
       let configContent = await fs.readFile(configXmlPath, 'utf8');
@@ -530,6 +621,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     outputDir = path.join(process.cwd(), 'builds'),
     iconPath,
     taskId,
+    permissions,
     onProgress,
   } = options;
 
@@ -635,8 +727,14 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     onProgress?.('Injecting app icon...', 42);
     await injectIcon(cordovaDir, iconPath, onProgress, 42);
 
+    // Inject custom permissions (if any)
+    if (permissions && permissions.length > 0) {
+      onProgress?.('Configuring app permissions...', 43);
+      await injectPermissions(cordovaDir, permissions, onProgress, 43);
+    }
+
     // Update config.xml with app version
-    onProgress?.('Setting app version...', 43);
+    onProgress?.('Setting app version...', 44);
     const configXmlPath = path.join(cordovaDir, 'config.xml');
     if (await fs.pathExists(configXmlPath)) {
       let configContent = await fs.readFile(configXmlPath, 'utf8');

@@ -118,6 +118,10 @@ const resources = {
                 permissionsCatLocation: 'Location',
                 permissionsCatHardware: 'Hardware',
                 permissionsCatNotifications: 'Notifications',
+                // PWA Publishing
+                pwaPublishLabel: 'PWA PUBLISHING',
+                pwaPublishSwitch: 'Also publish as PWA web app',
+                pwaPublishHint: 'Generate an installable web version alongside the APK',
             },
             progress: {
                 statusProcessing: 'STATUS: PROCESSING...',
@@ -304,6 +308,10 @@ const resources = {
                 permissionsCatLocation: '位置',
                 permissionsCatHardware: '硬件',
                 permissionsCatNotifications: '通知',
+                // PWA 发布
+                pwaPublishLabel: 'PWA 发布',
+                pwaPublishSwitch: '同时发布为 PWA 网页应用',
+                pwaPublishHint: '生成可安装的网页版本',
             },
             progress: {
                 statusProcessing: '状态：处理中...',

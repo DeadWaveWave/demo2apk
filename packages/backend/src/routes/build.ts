@@ -14,6 +14,7 @@ import {
   getZipProjectTypeLabel,
 } from '@demo2apk/core';
 import { resolveAppIdentityFromUpload, resolveAppIdentityFromCode } from '../utils/appIdentity.js';
+import { generatePwaSiteId } from '../utils/pwaSite.js';
 
 interface BuildRouteOptions {
   config: ServerConfig;
@@ -24,6 +25,7 @@ interface BuildRequestBody {
   appId?: string;
   appVersion?: string;
   permissions?: string[];  // Custom Android permissions
+  publishPwa?: string;
 }
 
 /**
@@ -151,6 +153,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       let appId: string | undefined;
       let appVersion: string | undefined;
       let permissions: string[] | undefined;
+      let publishPwa = false;
 
       const parts = request.parts();
       for await (const part of parts) {
@@ -195,6 +198,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
                 permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
               }
             }
+          } else if (part.fieldname === 'publishPwa') {
+            const raw = String(part.value || '').trim().toLowerCase();
+            publishPwa = ['1', 'true', 'yes', 'on'].includes(raw);
           }
         }
       }
@@ -241,6 +247,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       let filePath: string;
       let buildType: 'html' | 'zip' = 'html';
 
+      let pwaSiteId: string | undefined;
+
       // If content is a React component, wrap it into a project
       if (detection.type === 'react-component' && detection.confidence >= 50) {
         logger.info('Wrapping React component from uploaded file', { taskId, appName });
@@ -281,6 +289,16 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         );
       }
 
+      if (publishPwa) {
+        if (!config.pwaEnabled) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'PWA publishing is not enabled on this server',
+          });
+        }
+        pwaSiteId = generatePwaSiteId(appName);
+      }
+
       // Save icon file if provided
       let iconPath: string | undefined;
       if (iconFile) {
@@ -304,6 +322,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         permissions,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
+        ...(pwaSiteId ? { pwa: { siteId: pwaSiteId } } : {}),
       };
 
       // Add to queue
@@ -325,6 +344,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         confidence: detection.confidence,
         statusUrl: `/api/build/${taskId}/status`,
         downloadUrl: `/api/build/${taskId}/download`,
+        ...(pwaSiteId ? { pwaSiteId } : {}),
       };
     } catch (error) {
       logger.error('Failed to create build job', error, { taskId });
@@ -352,6 +372,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     const logger: Logger = request.logger;
     let appName = '';
     let appId: string | undefined;
+    let appVersion: string | undefined;
+    let publishPwa = false;
 
     try {
       // Parse multipart form data
@@ -400,6 +422,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
                 permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
               }
             }
+          } else if (part.fieldname === 'publishPwa') {
+            const raw = String(part.value || '').trim().toLowerCase();
+            publishPwa = ['1', 'true', 'yes', 'on'].includes(raw);
           }
         }
       }
@@ -494,6 +519,17 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
       }
 
       // Create job data
+      const pwaSiteId = publishPwa
+        ? (config.pwaEnabled ? generatePwaSiteId(appName) : undefined)
+        : undefined;
+
+      if (publishPwa && !config.pwaEnabled) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'PWA publishing is not enabled on this server',
+        });
+      }
+
       const jobData: BuildJobData = {
         taskId,
         type: buildType,
@@ -507,6 +543,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         createdAt: new Date().toISOString(),
         // Pass detection metadata for worker
         zipProjectRoot: zipDetection.projectRoot,
+        ...(pwaSiteId ? { pwa: { siteId: pwaSiteId } } : {}),
       };
 
       // Add to queue
@@ -530,6 +567,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         buildApproach: buildType === 'zip' ? 'React/Vite Build' : 'Direct Cordova',
         statusUrl: `/api/build/${taskId}/status`,
         downloadUrl: `/api/build/${taskId}/download`,
+        ...(pwaSiteId ? { pwaSiteId } : {}),
       };
     } catch (error) {
       logger.error('Failed to create ZIP build job', error, { taskId, appName, appId });
@@ -557,6 +595,8 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
     const logger: Logger = request.logger;
     let appName = '';
     let appId: string | undefined;
+    let appVersion: string | undefined;
+    let publishPwa = false;
 
     try {
       // Parse multipart form data
@@ -606,6 +646,9 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
                 permissions = permValue.split(',').map(p => p.trim()).filter(Boolean);
               }
             }
+          } else if (part.fieldname === 'publishPwa') {
+            const raw = String(part.value || '').trim().toLowerCase();
+            publishPwa = ['1', 'true', 'yes', 'on'].includes(raw);
           }
         }
       }
@@ -638,6 +681,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
 
       let filePath: string;
       let buildType: 'html' | 'zip';
+      let pwaSiteId: string | undefined;
 
       if (detection.type === 'react-component' && detection.confidence >= 50) {
         // Wrap React component into a full project
@@ -680,6 +724,16 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         appName = appName || 'MyVibeApp';
       }
 
+      if (publishPwa) {
+        if (!config.pwaEnabled) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'PWA publishing is not enabled on this server',
+          });
+        }
+        pwaSiteId = generatePwaSiteId(appName);
+      }
+
       // Save icon file if provided
       let iconPath: string | undefined;
       if (iconFile) {
@@ -703,6 +757,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         permissions,
         outputDir: config.buildsDir,
         createdAt: new Date().toISOString(),
+        ...(pwaSiteId ? { pwa: { siteId: pwaSiteId } } : {}),
       };
 
       // Add to queue
@@ -722,6 +777,7 @@ export const buildRoutes: FastifyPluginAsync<BuildRouteOptions> = async (fastify
         confidence: detection.confidence,
         statusUrl: `/api/build/${taskId}/status`,
         downloadUrl: `/api/build/${taskId}/download`,
+        ...(pwaSiteId ? { pwaSiteId } : {}),
       };
     } catch (error) {
       logger.error('Failed to create code build job', error, { taskId, appName });

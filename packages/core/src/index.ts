@@ -37,6 +37,13 @@ export {
   type FixResult,
 } from './utils/react-project-fixer.js';
 
+export {
+  addPwaSupport,
+  exportDirAsPwaSite,
+  type PwaSiteOptions,
+  type PwaExportResult,
+} from './utils/pwa.js';
+
 // Code Detection & Wrapping
 export {
   detectCodeType,

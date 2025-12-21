@@ -1,5 +1,6 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
+import type { PwaExportResult } from '@demo2apk/core';
 import type { Logger } from '../utils/logger.js';
 
 export type BuildType = 'html' | 'zip' | 'html-project';
@@ -16,6 +17,7 @@ export interface BuildJobData {
   outputDir: string;
   createdAt: string;
   zipProjectRoot?: string;  // Root directory inside ZIP (for nested projects)
+  pwa?: { siteId: string };
 }
 
 export interface BuildJobProgress {
@@ -28,6 +30,7 @@ export interface BuildJobResult {
   apkPath?: string;
   error?: string;
   duration?: number;
+  pwa?: PwaExportResult;
 }
 
 let redisConnection: Redis | null = null;
@@ -137,6 +140,7 @@ export async function getJobStatus(
   error?: string;
   createdAt?: string;
   appName?: string;
+  pwaSiteId?: string;
   queuePosition?: number;
   queueTotal?: number;
 }> {
@@ -150,6 +154,7 @@ export async function getJobStatus(
   const progress = job.progress as BuildJobProgress | undefined;
   const createdAt = job.data?.createdAt;
   const appName = job.data?.appName;
+  const pwaSiteId = job.data?.pwa?.siteId;
 
   switch (state) {
     case 'completed':
@@ -159,6 +164,7 @@ export async function getJobStatus(
         result: job.returnvalue,
         createdAt,
         appName,
+        pwaSiteId,
       };
     case 'failed':
       return {
@@ -167,6 +173,7 @@ export async function getJobStatus(
         error: job.failedReason,
         createdAt,
         appName,
+        pwaSiteId,
       };
     case 'active':
       return {
@@ -174,6 +181,7 @@ export async function getJobStatus(
         progress,
         createdAt,
         appName,
+        pwaSiteId,
       };
     case 'waiting':
     case 'delayed':
@@ -188,6 +196,7 @@ export async function getJobStatus(
         status: 'pending',
         createdAt,
         appName,
+        pwaSiteId,
         queuePosition: position || 1,  // At least 1 if in waiting state
         queueTotal: stats.waiting + stats.active,  // Show total jobs ahead/processing
       };
@@ -201,6 +210,7 @@ export async function getJobStatus(
         status: 'pending',
         createdAt,
         appName,
+        pwaSiteId,
         queuePosition: 1,
         queueTotal: stats.waiting + stats.active,
       };
@@ -314,4 +324,3 @@ export async function closeConnections(): Promise<void> {
     redisConnection = null;
   }
 }
-

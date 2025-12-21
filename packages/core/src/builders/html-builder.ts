@@ -9,6 +9,7 @@ import { detectAndroidSdk, setupAndroidEnv, detectCordova } from '../utils/andro
 import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 import { getFullPermissionName, DEFAULT_PERMISSIONS, validatePermissions } from '../utils/android-permissions.js';
+import { addPwaSupport, type PwaExportResult } from '../utils/pwa.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,7 @@ export interface HtmlBuildOptions {
   iconPath?: string;  // Custom icon path (optional)
   taskId?: string;    // Task ID for unique file naming
   permissions?: string[];  // Custom Android permissions (optional)
+  pwa?: { outputDir: string; siteId: string };
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -45,6 +47,7 @@ export interface HtmlProjectBuildOptions {
   iconPath?: string;
   taskId?: string;
   permissions?: string[];  // Custom Android permissions (optional)
+  pwa?: { outputDir: string; siteId: string };
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -53,6 +56,7 @@ export interface BuildResult {
   apkPath?: string;
   error?: string;
   duration?: number;
+  pwa?: PwaExportResult;
 }
 
 const GRADLE_VERSION = '8.9';
@@ -400,8 +404,11 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     skipOfflineify = false,
     iconPath,
     permissions,
+    pwa,
     onProgress,
   } = options;
+
+  let pwaResult: PwaExportResult | undefined;
 
   try {
     // Validate HTML file exists
@@ -500,6 +507,31 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
 
     onProgress?.('Preparing web resources...', 45);
 
+    if (pwa) {
+      const siteDir = path.join(pwa.outputDir, pwa.siteId);
+      onProgress?.('Exporting PWA site...', 44);
+      try {
+        await fs.remove(siteDir);
+        await fs.ensureDir(siteDir);
+        const htmlDir = path.dirname(tempOfflineDir ? path.join(tempOfflineDir, 'index.html') : processedHtmlPath);
+        await fs.copy(htmlDir, siteDir);
+        const htmlBasename = path.basename(processedHtmlPath);
+        if (htmlBasename !== 'index.html') {
+          const srcPath = path.join(siteDir, htmlBasename);
+          const destPath = path.join(siteDir, 'index.html');
+          if (await fs.pathExists(srcPath)) {
+            await fs.move(srcPath, destPath, { overwrite: true });
+          }
+        }
+        await addPwaSupport(siteDir, { appName, iconPath });
+        pwaResult = { siteId: pwa.siteId, siteDir, success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pwaResult = { siteId: pwa.siteId, siteDir, success: false, error: message };
+        onProgress?.(`PWA export failed: ${message}`, 44);
+      }
+    }
+
     // Clear www directory and copy HTML resources
     const wwwDir = path.join(workDir, 'www');
     await fs.emptyDir(wwwDir);
@@ -595,6 +627,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       success: true,
       apkPath: apkDest,
       duration,
+      pwa: pwaResult,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -602,6 +635,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
       success: false,
       error: message,
       duration: Date.now() - startTime,
+      pwa: pwaResult,
     };
   }
 }
@@ -622,8 +656,11 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     iconPath,
     taskId,
     permissions,
+    pwa,
     onProgress,
   } = options;
+
+  let pwaResult: PwaExportResult | undefined;
 
   try {
     // Validate ZIP file exists
@@ -697,6 +734,29 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
       const firstHtml = htmlFiles[0];
       await fs.move(firstHtml, indexHtmlPath);
       onProgress?.(`Using ${path.basename(firstHtml)} as entry point`, 18);
+    }
+
+    if (pwa) {
+      const siteDir = path.join(pwa.outputDir, pwa.siteId);
+      onProgress?.('Exporting PWA site...', 20);
+      try {
+        await fs.remove(siteDir);
+        await fs.ensureDir(siteDir);
+        await fs.copy(projectDir, siteDir, {
+          filter: (src) => {
+            const relativePath = path.relative(projectDir, src);
+            return !relativePath.includes('node_modules') &&
+              !path.basename(src).startsWith('.') &&
+              !relativePath.includes('__MACOSX');
+          },
+        });
+        await addPwaSupport(siteDir, { appName, iconPath });
+        pwaResult = { siteId: pwa.siteId, siteDir, success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pwaResult = { siteId: pwa.siteId, siteDir, success: false, error: message };
+        onProgress?.(`PWA export failed: ${message}`, 20);
+      }
     }
 
     onProgress?.('Creating Cordova project...', 25);
@@ -840,6 +900,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
       success: true,
       apkPath: apkDest,
       duration,
+      pwa: pwaResult,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -847,6 +908,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
       success: false,
       error: message,
       duration: Date.now() - startTime,
+      pwa: pwaResult,
     };
   }
 }
@@ -877,4 +939,3 @@ async function findHtmlFiles(dir: string): Promise<string[]> {
   await scan(dir);
   return htmlFiles;
 }
-

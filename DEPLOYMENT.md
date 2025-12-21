@@ -417,6 +417,15 @@ sudo systemctl reload nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
+---
+
+## PWA 发布（独立子域）
+
+如果你希望“发布结果在浏览器里可安装为 PWA”，推荐使用 **方案 B：每个发布独立子域**（避免与主站/API 同源带来的安全风险）。
+
+- 详细说明与 Nginx wildcard 配置示例见：`docs/PWA_PUBLISHING.md`
+- 关键前置：`*.pwa.your-domain.com` 的 DNS 与 `*.pwa.your-domain.com` 通配符证书
+
 ## 监控和维护
 
 ### 日志查看

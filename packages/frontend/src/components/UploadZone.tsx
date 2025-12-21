@@ -1,10 +1,11 @@
-import { useCallback, useState, useRef, useEffect, useMemo } from 'react'
+import { useCallback, useState, useRef, useMemo } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useBuildStore } from '../hooks/useBuildStore'
 import { useTranslation } from 'react-i18next'
 import { detectCodeType, getCodeTypeLabel, getCodeTypeColor, type DetectionResult } from '../utils/codeDetector'
 import PermissionSelector from './PermissionSelector'
 import { DEFAULT_PERMISSIONS } from '../utils/permissions'
+import { useServerConfig } from '../hooks/useServerConfig'
 
 type BuildType = 'html' | 'html-paste' | 'zip'
 
@@ -24,6 +25,10 @@ export default function UploadZone() {
   // Permissions state
   const [permissions, setPermissions] = useState<string[]>([...DEFAULT_PERMISSIONS])
   const [permissionsExpanded, setPermissionsExpanded] = useState(false)
+
+  // PWA publish state (only shown when server has PWA enabled)
+  const { config: serverConfig } = useServerConfig()
+  const [publishPwa, setPublishPwa] = useState(false)
 
   // Code type detection result (memoized for performance)
   const codeDetection: DetectionResult | null = useMemo(() => {
@@ -161,7 +166,7 @@ export default function UploadZone() {
 
       if (buildType === 'zip') {
         // ZIP files go directly to React builder
-        startBuild(file, 'zip', finalAppName, iconFile || undefined, finalVersion, permissions)
+        startBuild(file, 'zip', finalAppName, iconFile || undefined, finalVersion, permissions, publishPwa)
         return
       }
 
@@ -173,17 +178,17 @@ export default function UploadZone() {
         // If it's a React component (regardless of file extension), use code endpoint
         if (detection.type === 'react-component' && detection.confidence >= 50) {
           const name = finalAppName || detection.appNameHint || 'App'
-          startCodeBuild(content, name, iconFile || undefined, finalVersion, permissions)
+          startCodeBuild(content, name, iconFile || undefined, finalVersion, permissions, publishPwa)
         } else {
           // HTML or HTML-React, use traditional HTML build
-          startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions)
+          startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions, publishPwa)
         }
       } catch {
         // If reading fails, fall back to traditional build
-        startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions)
+        startBuild(file, 'html', finalAppName, iconFile || undefined, finalVersion, permissions, publishPwa)
       }
     }
-  }, [buildType, appName, useFileName, iconFile, appVersion, permissions, startBuild, startCodeBuild])
+  }, [buildType, appName, useFileName, iconFile, appVersion, permissions, publishPwa, startBuild, startCodeBuild])
 
   const handleHtmlCodeSubmit = useCallback(async () => {
     // Paste mode requires both code and app name
@@ -197,8 +202,8 @@ export default function UploadZone() {
     }
 
     // Use the new unified code endpoint that auto-detects type
-    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined, finalVersion, permissions)
-  }, [htmlCode, appName, iconFile, appVersion, permissions, startCodeBuild, t])
+    startCodeBuild(htmlCode, appName.trim(), iconFile || undefined, finalVersion, permissions, publishPwa)
+  }, [htmlCode, appName, iconFile, appVersion, permissions, publishPwa, startCodeBuild, t])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -438,6 +443,43 @@ export default function UploadZone() {
         />
       </div>
 
+      {/* PWA Publishing Toggle - Only show when server has PWA enabled */}
+      {serverConfig.pwaEnabled && (
+        <div className="mt-4 relative group">
+          <div className="absolute -top-3 left-4 bg-bp-panel px-2 text-[10px] md:text-xs font-mono text-bp-cyan z-10">
+            {t('upload.pwaPublishLabel', 'PWA PUBLISHING')}
+          </div>
+          <div className="relative border border-bp-grid hover:border-bp-cyan/50 transition-colors p-3 md:p-4">
+            {/* Corner decorations */}
+            <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-bp-cyan/50" />
+            <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-bp-cyan/50" />
+            <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-bp-cyan/50" />
+            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-bp-cyan/50" />
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={publishPwa}
+                  onChange={(e) => setPublishPwa(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-bp-dark border border-bp-grid rounded-full peer peer-checked:border-bp-cyan peer-checked:bg-bp-cyan/20 transition-colors" />
+                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-bp-dim rounded-full transition-transform peer-checked:translate-x-5 peer-checked:bg-bp-cyan" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs md:text-sm font-mono text-bp-text">
+                  {t('upload.pwaPublishSwitch', 'Also publish as PWA web app')}
+                </div>
+                <div className="text-[10px] md:text-xs font-mono text-bp-dim mt-0.5">
+                  {t('upload.pwaPublishHint', 'Generate an installable web version alongside the APK')}
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-1 md:mb-2 pt-2 md:pt-4 border-t border-bp-grid/30">
         <div className="text-bp-blue/70 font-mono text-[10px] md:text-xs">{t('upload.sectionLabel')}</div>
         <div className="ruler-x w-1/3 opacity-30" />
@@ -524,7 +566,7 @@ export default function UploadZone() {
 
           {/* Info Label */}
           <div className="flex justify-between items-center text-xs font-mono text-bp-dim">
-            <span>{t('upload.charCount', { count: htmlCode.length.toLocaleString() })}</span>
+            <span>{t('upload.charCount', { count: htmlCode.length })}</span>
             <div className="flex items-center gap-2">
               {/* Code Type Detection Badge */}
               {codeDetection && codeDetection.confidence > 0 && (

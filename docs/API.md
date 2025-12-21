@@ -16,6 +16,8 @@
 | GET    | `/api/build/:taskId/download` | 下载构建完成的 APK     |
 | DELETE | `/api/build/:taskId`          | 取消任务并清理文件     |
 
+> 可选能力：当服务端开启 `PWA_ENABLED=true` 时，构建请求可携带 `publishPwa=true`，Worker 会额外导出一个可安装的 PWA 站点（静态文件），用于分享/预览。
+
 ## 详细说明
 
 ### 1. 健康检查
@@ -45,13 +47,15 @@ POST /api/build/html
 | file    | File   | 是   | HTML 文件 (.html/.htm)      |
 | appName | string | 否   | 应用名称 (默认 "MyVibeApp") |
 | appId   | string | 否   | 包名 (自动生成)             |
+| publishPwa | string | 否 | 是否额外导出 PWA (`true/false`) |
 
 **示例:**
 
 ```bash
 curl -X POST http://localhost:3000/api/build/html \
   -F "file=@mypage.html" \
-  -F "appName=MyApp"
+  -F "appName=MyApp" \
+  -F "publishPwa=true"
 ```
 
 ### 3. ZIP/React 构建
@@ -67,6 +71,7 @@ POST /api/build/zip
 | file    | File   | 是   | 项目 ZIP 包                        |
 | appName | string | 否   | 应用名称 (默认 "MyReactApp")       |
 | appId   | string | 否   | 包名 (默认 "com.demo2apk.reactapp") |
+| publishPwa | string | 否 | 是否额外导出 PWA (`true/false`) |
 
 **支持项目:**
 - Vite + React
@@ -94,6 +99,10 @@ GET /api/build/:taskId/status
   "progress": {
     "message": "Building APK...",
     "percent": 70
+  },
+  "pwa": {
+    "siteId": "myapp-1a2b3c4d",
+    "url": "https://myapp-1a2b3c4d.pwa.example.com/"
   }
 }
 ```
@@ -113,4 +122,3 @@ DELETE /api/build/:taskId
 ```
 
 清理任务记录和相关临时文件。
-

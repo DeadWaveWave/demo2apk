@@ -10,6 +10,7 @@ import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixe
 import { generateAppId, ensureGradleWrapper } from './html-builder.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 import { getFullPermissionName, validatePermissions } from '../utils/android-permissions.js';
+import { exportDirAsPwaSite, type PwaExportResult } from '../utils/pwa.js';
 
 /**
  * Calculate optimal Node.js memory limit based on container memory.
@@ -160,6 +161,7 @@ export interface ReactBuildOptions {
   iconPath?: string;  // Custom icon path (optional)
   taskId?: string;    // Task ID for unique file naming (prevents concurrent build conflicts)
   permissions?: string[];  // Custom Android permissions (optional)
+  pwa?: { outputDir: string; siteId: string };
   onProgress?: (message: string, percent?: number) => void;
 }
 
@@ -168,6 +170,7 @@ export interface BuildResult {
   apkPath?: string;
   error?: string;
   duration?: number;
+  pwa?: PwaExportResult;
 }
 
 type ProjectType = 'vite' | 'cra' | 'nextjs' | 'unknown';
@@ -421,8 +424,11 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     iconPath,
     taskId,
     permissions,
+    pwa,
     onProgress,
   } = options;
+
+  let pwaResult: PwaExportResult | undefined;
 
   try {
     // Validate ZIP file exists
@@ -598,6 +604,19 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
       return { success: false, error: `Build output directory not found: ${buildDir}` };
     }
 
+    if (pwa) {
+      const siteDir = path.join(pwa.outputDir, pwa.siteId);
+      onProgress?.('Exporting PWA site...', 54);
+      try {
+        await exportDirAsPwaSite(buildPath, siteDir, { appName, iconPath });
+        pwaResult = { siteId: pwa.siteId, siteDir, success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pwaResult = { siteId: pwa.siteId, siteDir, success: false, error: message };
+        onProgress?.(`PWA export failed: ${message}`, 54);
+      }
+    }
+
     onProgress?.('Installing Capacitor...', 55);
 
     // Install Capacitor (use --legacy-peer-deps for npm)
@@ -767,6 +786,7 @@ export default config;
       success: true,
       apkPath: apkDest,
       duration,
+      pwa: pwaResult,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -774,6 +794,7 @@ export default config;
       success: false,
       error: message,
       duration: Date.now() - startTime,
+      pwa: pwaResult,
     };
   }
 }

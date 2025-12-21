@@ -35,6 +35,10 @@ services:
       - RATE_LIMIT_MAX=100
       - FILE_RETENTION_HOURS=24
       - CLEANUP_BUILD_ARTIFACTS=false
+      - PWA_ENABLED=${PWA_ENABLED:-false}
+      - PWA_DIR=${PWA_DIR:-/app/builds/pwa-sites}
+      - PWA_HOST_SUFFIX=${PWA_HOST_SUFFIX:-}
+      - PWA_URL_SCHEME=${PWA_URL_SCHEME:-https}
     volumes:
       - ./packages:/app/packages
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml
@@ -54,6 +58,9 @@ services:
       - CLEANUP_BUILD_ARTIFACTS=false
       - FILE_CLEANUP_ENABLED=true
       - FILE_CLEANUP_INTERVAL_MINUTES=30
+      - PWA_ENABLED=${PWA_ENABLED:-false}
+      - PWA_DIR=${PWA_DIR:-/app/builds/pwa-sites}
+      - PWA_RETENTION_HOURS=${PWA_RETENTION_HOURS:-}
     volumes:
       - ./packages:/app/packages
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml

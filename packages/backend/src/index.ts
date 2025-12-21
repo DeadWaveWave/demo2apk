@@ -33,6 +33,10 @@ export interface ServerConfig {
   port: number;
   host: string;
   buildsDir: string;
+  pwaDir: string;
+  pwaEnabled: boolean;
+  pwaHostSuffix?: string;
+  pwaUrlScheme?: string;
   redisUrl: string;
   maxFileSize: number;
   rateLimitMax: number;
@@ -49,10 +53,21 @@ function resolveBuildsDir(): string {
   return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
 }
 
+function resolvePwaDir(buildsDir: string): string {
+  const dir = process.env.PWA_DIR || path.join(buildsDir, 'pwa-sites');
+  return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+}
+
+const defaultBuildsDir = resolveBuildsDir();
+
 const defaultConfig: ServerConfig = {
   port: parseInt(process.env.PORT || '3000', 10),
   host: process.env.HOST || '0.0.0.0',
-  buildsDir: resolveBuildsDir(),
+  buildsDir: defaultBuildsDir,
+  pwaDir: resolvePwaDir(defaultBuildsDir),
+  pwaEnabled: process.env.PWA_ENABLED === 'true',
+  pwaHostSuffix: process.env.PWA_HOST_SUFFIX,
+  pwaUrlScheme: process.env.PWA_URL_SCHEME || 'https',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '31457280', 10), // 30MB
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '5', 10),
@@ -63,7 +78,12 @@ const defaultConfig: ServerConfig = {
 };
 
 export async function createServer(config: Partial<ServerConfig> = {}) {
-  const finalConfig = { ...defaultConfig, ...config };
+  const merged = { ...defaultConfig, ...config };
+  const finalConfig: ServerConfig = {
+    ...merged,
+    buildsDir: path.isAbsolute(merged.buildsDir) ? merged.buildsDir : path.resolve(process.cwd(), merged.buildsDir),
+    pwaDir: path.isAbsolute(merged.pwaDir) ? merged.pwaDir : path.resolve(process.cwd(), merged.pwaDir),
+  };
 
   // 根 Logger 用于启动日志
   const rootLogger = createLogger({ component: 'api' });
@@ -158,16 +178,26 @@ export async function createServer(config: Partial<ServerConfig> = {}) {
     timestamp: new Date().toISOString(),
   }));
 
+  // Server configuration endpoint (for frontend feature detection)
+  fastify.get('/api/config', async () => ({
+    pwaEnabled: finalConfig.pwaEnabled,
+    maxFileSize: finalConfig.maxFileSize,
+    rateLimitEnabled: finalConfig.rateLimitEnabled,
+    rateLimitMax: finalConfig.rateLimitMax,
+    fileRetentionHours: finalConfig.fileRetentionHours,
+  }));
+
   // API info endpoint
   fastify.get('/api', async () => ({
     name: 'Demo2APK API',
     version: '2.0.0',
     endpoints: {
-      'POST /api/build/html': 'Upload HTML file to build APK',
-      'POST /api/build/zip': 'Upload ZIP project to build APK',
+      'POST /api/build/html': 'Upload HTML file to build APK (optional: publishPwa=true)',
+      'POST /api/build/zip': 'Upload ZIP project to build APK (optional: publishPwa=true)',
       'GET /api/build/:taskId/status': 'Get build task status',
       'GET /api/build/:taskId/download': 'Download built APK',
       'DELETE /api/build/:taskId': 'Cancel/cleanup build task',
+      'GET /api/config': 'Get server configuration',
     },
   }));
 
@@ -211,4 +241,3 @@ if (isMain) {
     process.exit(1);
   }
 }
-

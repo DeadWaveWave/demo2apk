@@ -21,8 +21,8 @@ interface BuildState {
   isRestoring: boolean
 
   // Actions
-  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[]) => Promise<void>
-  startCodeBuild: (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[]) => Promise<void>
+  startBuild: (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[], publishPwa?: boolean) => Promise<void>
+  startCodeBuild: (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[], publishPwa?: boolean) => Promise<void>
   restoreFromTaskId: (taskId: string) => Promise<void>
   reset: () => void
 }
@@ -61,7 +61,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   queueTotal: null,
   isRestoring: false,
 
-  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[]) => {
+  startBuild: async (file: File, type: 'html' | 'zip', appName?: string, iconFile?: File, appVersion?: string, permissions?: string[], publishPwa?: boolean) => {
     set({
       status: 'uploading',
       progress: 0,
@@ -91,6 +91,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       }
       if (permissions && permissions.length > 0) {
         formData.append('permissions', JSON.stringify(permissions))
+      }
+      if (publishPwa) {
+        formData.append('publishPwa', 'true')
       }
 
       const uploadUrl = type === 'html' ? '/api/build/html' : '/api/build/zip'
@@ -158,7 +161,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   },
 
   // Start build from pasted code (with auto-detection)
-  startCodeBuild: async (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[]) => {
+  startCodeBuild: async (code: string, appName: string, iconFile?: File, appVersion?: string, permissions?: string[], publishPwa?: boolean) => {
     set({
       status: 'uploading',
       progress: 0,
@@ -185,6 +188,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       }
       if (permissions && permissions.length > 0) {
         formData.append('permissions', JSON.stringify(permissions))
+      }
+      if (publishPwa) {
+        formData.append('publishPwa', 'true')
       }
 
       set({ logs: ['> ANALYZING CODE TYPE...', '> INITIATING UPLOAD SEQUENCE...'] })

@@ -38,6 +38,11 @@ services:
       - FILE_RETENTION_HOURS=${FILE_RETENTION_HOURS:-2}
       - MOCK_BUILD=false
       - CLEANUP_BUILD_ARTIFACTS=${CLEANUP_BUILD_ARTIFACTS:-true}
+      # Optional: export PWA sites when publishPwa=true
+      - PWA_ENABLED=${PWA_ENABLED:-false}
+      - PWA_DIR=${PWA_DIR:-/app/builds/pwa-sites}
+      - PWA_HOST_SUFFIX=${PWA_HOST_SUFFIX:-}
+      - PWA_URL_SCHEME=${PWA_URL_SCHEME:-https}
     volumes:
       - builds:/app/builds
       - uploads:/app/uploads
@@ -75,6 +80,10 @@ services:
       - CLEANUP_BUILD_ARTIFACTS=${CLEANUP_BUILD_ARTIFACTS:-true}
       - FILE_CLEANUP_ENABLED=${FILE_CLEANUP_ENABLED:-true}
       - FILE_CLEANUP_INTERVAL_MINUTES=${FILE_CLEANUP_INTERVAL_MINUTES:-30}
+      # Optional: export/cleanup PWA sites when publishPwa=true
+      - PWA_ENABLED=${PWA_ENABLED:-false}
+      - PWA_DIR=${PWA_DIR:-/app/builds/pwa-sites}
+      - PWA_RETENTION_HOURS=${PWA_RETENTION_HOURS:-}
     volumes:
       - builds:/app/builds
       - uploads:/app/uploads

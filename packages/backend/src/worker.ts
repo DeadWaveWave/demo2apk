@@ -32,7 +32,10 @@ const MOCK_BUILD = process.env.MOCK_BUILD === 'true';
 const MOCK_APK_PATH = process.env.MOCK_APK_PATH || './test-assets/mock.apk';
 const BUILDS_DIR = process.env.BUILDS_DIR || path.join(process.cwd(), 'builds');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(os.tmpdir(), 'demo2apk-uploads');
+const PWA_ENABLED = process.env.PWA_ENABLED === 'true';
+const PWA_DIR = process.env.PWA_DIR || path.join(BUILDS_DIR, 'pwa-sites');
 const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '2', 10);
+const PWA_RETENTION_HOURS = parseInt(process.env.PWA_RETENTION_HOURS || String(FILE_RETENTION_HOURS), 10);
 const FILE_CLEANUP_ENABLED = process.env.FILE_CLEANUP_ENABLED !== 'false';
 const FILE_CLEANUP_INTERVAL_MINUTES = parseInt(process.env.FILE_CLEANUP_INTERVAL_MINUTES || '30', 10);
 const CLEANUP_UPLOADS_ON_COMPLETE = process.env.CLEANUP_UPLOADS_ON_COMPLETE !== 'false';
@@ -41,7 +44,7 @@ const CLEANUP_UPLOADS_ON_COMPLETE = process.env.CLEANUP_UPLOADS_ON_COMPLETE !== 
  * Process a build job
  */
 async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<BuildJobResult> {
-  const { type, filePath, appName, appId, appVersion, iconPath, permissions, outputDir, taskId, zipProjectRoot } = job.data;
+  const { type, filePath, appName, appId, appVersion, iconPath, permissions, outputDir, taskId, zipProjectRoot, pwa } = job.data;
   const startTime = Date.now();
 
   // 为此任务创建子 Logger
@@ -96,7 +99,11 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
       };
     }
 
+    // Real build logic starts here
     let result: BuildJobResult;
+    const pwaOption = (PWA_ENABLED && pwa?.siteId)
+      ? { outputDir: PWA_DIR, siteId: pwa.siteId }
+      : undefined;
 
     if (type === 'html') {
       result = await buildHtmlToApk({
@@ -108,6 +115,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         permissions,
         outputDir,
         taskId,  // Pass taskId for unique APK filename
+        pwa: pwaOption,
         onProgress,
       });
     } else if (type === 'zip') {
@@ -120,6 +128,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         permissions,
         outputDir,
         taskId,  // Pass taskId for unique APK filename
+        pwa: pwaOption,
         onProgress,
       });
     } else if (type === 'html-project') {
@@ -134,6 +143,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
         permissions,
         outputDir,
         taskId,
+        pwa: pwaOption,
         onProgress,
       });
     } else {
@@ -181,7 +191,7 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
       // If the API created a temporary ZIP in BUILDS_DIR for React wrapping, remove it after the build.
       // (Uploaded ZIPs live in UPLOADS_DIR and are already removed by cleanupTask above.)
       if (filePath && path.dirname(filePath) === outputDir && filePath.endsWith('-project.zip')) {
-        await fs.remove(filePath).catch(() => {});
+        await fs.remove(filePath).catch(() => { });
       }
     }
   }
@@ -193,10 +203,12 @@ async function processBuildJob(job: Job<BuildJobData, BuildJobResult>): Promise<
 async function cleanupOldBuilds() {
   const cleanupLogger = logger.child({ operation: 'cleanup' });
   const retentionMs = FILE_RETENTION_HOURS * 60 * 60 * 1000;
+  const pwaRetentionMs = PWA_RETENTION_HOURS * 60 * 60 * 1000;
   const now = Date.now();
   let cleanedBuilds = 0;
   let cleanedUploads = 0;
   const cleanedItems: string[] = [];
+  const pwaDirResolved = path.resolve(PWA_DIR);
 
   try {
     const targets = [
@@ -211,6 +223,11 @@ async function cleanupOldBuilds() {
 
       for (const entry of entries) {
         const entryPath = path.join(target.dir, entry.name);
+
+        // Skip PWA directory when cleaning builds
+        if (target.label === 'builds' && path.resolve(entryPath) === pwaDirResolved) {
+          continue;
+        }
 
         try {
           const stats = await fs.stat(entryPath);
@@ -244,6 +261,36 @@ async function cleanupOldBuilds() {
         items: cleanedItems, // 已限制到前 10 个
       });
     }
+
+    // Cleanup PWA sites separately
+    if (PWA_ENABLED && await fs.pathExists(PWA_DIR)) {
+      const pwaEntries = await fs.readdir(PWA_DIR, { withFileTypes: true });
+      let pwaCleaned = 0;
+      const pwaItems: string[] = [];
+
+      for (const entry of pwaEntries) {
+        const entryPath = path.join(PWA_DIR, entry.name);
+        try {
+          const stats = await fs.stat(entryPath);
+          const age = now - stats.mtimeMs;
+          if (age > pwaRetentionMs) {
+            await fs.remove(entryPath);
+            pwaCleaned++;
+            pwaItems.push(entry.name);
+          }
+        } catch {
+          // Ignore per-entry errors
+        }
+      }
+
+      if (pwaCleaned > 0) {
+        cleanupLogger.info('PWA cleanup completed', {
+          removedCount: pwaCleaned,
+          retentionHours: PWA_RETENTION_HOURS,
+          items: pwaItems.slice(0, 10),
+        });
+      }
+    }
   } catch (err) {
     cleanupLogger.error('Cleanup failed', err);
   }
@@ -254,6 +301,9 @@ logger.info('Worker starting', {
   redisUrl: REDIS_URL.replace(/\/\/.*@/, '//*****@'), // 隐藏密码
   mockBuild: MOCK_BUILD,
   fileRetentionHours: FILE_RETENTION_HOURS,
+  pwaEnabled: PWA_ENABLED,
+  pwaDir: PWA_DIR,
+  pwaRetentionHours: PWA_RETENTION_HOURS,
   concurrency: parseInt(process.env.WORKER_CONCURRENCY || '2', 10),
 });
 

@@ -5,6 +5,7 @@ import { getJobStatus, getJob, removeJob } from '../services/queue.js';
 import { apkExists, getApkSize, cleanupTask } from '../services/storage.js';
 import type { ServerConfig } from '../index.js';
 import type { Logger } from '../utils/logger.js';
+import { buildPwaUrl } from '../utils/pwaSite.js';
 
 interface StatusRouteOptions {
   config: ServerConfig;
@@ -71,6 +72,18 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
       response.progress = jobStatus.progress;
     }
 
+    if (jobStatus.pwaSiteId) {
+      const url = buildPwaUrl({
+        siteId: jobStatus.pwaSiteId,
+        hostSuffix: config.pwaHostSuffix,
+        scheme: config.pwaUrlScheme,
+      });
+      response.pwa = {
+        siteId: jobStatus.pwaSiteId,
+        ...(url ? { url } : {}),
+      };
+    }
+
     // Include queue position for pending jobs
     if (jobStatus.status === 'pending') {
       if (jobStatus.queuePosition !== undefined) {
@@ -86,6 +99,15 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
         success: jobStatus.result.success,
         duration: jobStatus.result.duration,
       };
+
+      if (jobStatus.result.pwa) {
+        const pwa = response.pwa as Record<string, unknown> | undefined;
+        const safe = {
+          success: jobStatus.result.pwa.success,
+          ...(jobStatus.result.pwa.error ? { error: jobStatus.result.pwa.error } : {}),
+        };
+        response.pwa = pwa ? { ...pwa, ...safe } : { siteId: jobStatus.result.pwa.siteId, ...safe };
+      }
 
       if (jobStatus.result.success && jobStatus.result.apkPath) {
         response.downloadUrl = `/api/build/${taskId}/download`;
@@ -251,4 +273,3 @@ export const statusRoutes: FastifyPluginAsync<StatusRouteOptions> = async (fasti
     return response;
   });
 };
-

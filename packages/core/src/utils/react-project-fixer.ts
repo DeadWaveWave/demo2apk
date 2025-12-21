@@ -114,6 +114,9 @@ export async function fixViteProject(projectDir: string): Promise<FixResult> {
   // 9. Guard performance.measure so legacy WebViews不会因为缺少 mark 直接抛异常把脚本打断
   await injectPerformanceMeasureGuard(projectDir, changes);
 
+  // 10. Fix Babel config with invalid plugins (null/undefined/false entries cause build failures)
+  await fixBabelConfig(projectDir, changes);
+
   return {
     fixed: changes.length > 0,
     changes,
@@ -1073,3 +1076,190 @@ export async function needsViteProjectFix(projectDir: string): Promise<boolean> 
 
   return !hasBase || !hasLegacy;
 }
+
+/**
+ * Fix Babel configuration files that may contain invalid plugins entries.
+ * 
+ * Some AI-generated projects or templates use conditional expressions in the plugins array
+ * that evaluate to null/undefined/false in different environments, causing:
+ *   "[vite:build-html] .plugins[X] must be a string, object, function"
+ * 
+ * This function scans common Babel config locations and removes invalid entries.
+ */
+async function fixBabelConfig(projectDir: string, changes: string[]): Promise<void> {
+  // Common Babel config file names
+  const babelConfigFiles = [
+    '.babelrc',
+    '.babelrc.json',
+    '.babelrc.js',
+    '.babelrc.cjs',
+    '.babelrc.mjs',
+    'babel.config.json',
+    'babel.config.js',
+    'babel.config.cjs',
+    'babel.config.mjs',
+  ];
+
+  // Check each potential Babel config file
+  for (const configFile of babelConfigFiles) {
+    const configPath = path.join(projectDir, configFile);
+    if (!(await fs.pathExists(configPath))) {
+      continue;
+    }
+
+    try {
+      const ext = path.extname(configFile).toLowerCase();
+
+      if (ext === '.json' || configFile === '.babelrc') {
+        // Handle JSON config files
+        await fixBabelJsonConfig(configPath, changes);
+      } else if (ext === '.js' || ext === '.cjs' || ext === '.mjs') {
+        // Handle JS config files - more complex, we do basic regex cleanup
+        await fixBabelJsConfig(configPath, changes);
+      }
+    } catch (error) {
+      // Non-fatal: continue with other configs
+      console.error(`Failed to fix Babel config ${configFile}:`, error);
+    }
+  }
+
+  // Also check package.json for babel key
+  const pkgPath = path.join(projectDir, 'package.json');
+  if (await fs.pathExists(pkgPath)) {
+    try {
+      await fixBabelInPackageJson(pkgPath, changes);
+    } catch {
+      // Non-fatal
+    }
+  }
+}
+
+/**
+ * Fix Babel JSON config file (.babelrc, babel.config.json)
+ */
+async function fixBabelJsonConfig(configPath: string, changes: string[]): Promise<void> {
+  const content = await fs.readFile(configPath, 'utf8');
+
+  let config: Record<string, unknown>;
+  try {
+    config = JSON.parse(content);
+  } catch {
+    return; // Invalid JSON, skip
+  }
+
+  let modified = false;
+
+  // Fix plugins array
+  if (Array.isArray(config.plugins)) {
+    const plugins = config.plugins as unknown[];
+    const originalLength = plugins.length;
+    const filteredPlugins = plugins.filter((plugin: unknown) => {
+      // Keep valid plugin entries (strings, arrays, objects), filter out null/undefined/false
+      return plugin !== null && plugin !== undefined && plugin !== false && plugin !== '';
+    });
+    if (filteredPlugins.length !== originalLength) {
+      config.plugins = filteredPlugins;
+      modified = true;
+    }
+  }
+
+  // Fix presets array
+  if (Array.isArray(config.presets)) {
+    const presets = config.presets as unknown[];
+    const originalLength = presets.length;
+    const filteredPresets = presets.filter((preset: unknown) => {
+      return preset !== null && preset !== undefined && preset !== false && preset !== '';
+    });
+    if (filteredPresets.length !== originalLength) {
+      config.presets = filteredPresets;
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+    changes.push(`Fixed invalid entries in ${path.basename(configPath)}`);
+  }
+}
+
+/**
+ * Fix Babel JS config file - uses regex to clean obvious invalid patterns
+ * This is a best-effort approach since we can't safely evaluate JS code
+ */
+async function fixBabelJsConfig(configPath: string, changes: string[]): Promise<void> {
+  let content = await fs.readFile(configPath, 'utf8');
+  const originalContent = content;
+
+  // Pattern to match arrays with null, undefined, false, or empty string entries
+  // This handles patterns like: [plugin1, null, plugin2] or [plugin1, false && 'plugin', plugin2]
+  const cleanupPatterns = [
+    // Remove standalone null, undefined, false followed by comma
+    /,\s*null\s*(?=,|\])/g,
+    /,\s*undefined\s*(?=,|\])/g,
+    /,\s*false\s*(?=,|\])/g,
+    // Remove null, undefined, false at the start of array followed by comma
+    /\[\s*null\s*,/g,
+    /\[\s*undefined\s*,/g,
+    /\[\s*false\s*,/g,
+    // Remove patterns like: condition && 'plugin' where condition evaluates to false
+    /,\s*false\s*&&\s*['"][^'"]+['"]\s*(?=,|\])/g,
+  ];
+
+  for (const pattern of cleanupPatterns) {
+    content = content.replace(pattern, (match) => {
+      // Replace with cleaned version
+      if (match.startsWith('[')) {
+        return '[';
+      }
+      return '';
+    });
+  }
+
+  // Also filter out obvious .filter(Boolean) patterns that might not be applied
+  // Add .filter(Boolean) to plugins/presets arrays if they contain conditional expressions
+  if (content !== originalContent) {
+    await fs.writeFile(configPath, content, 'utf8');
+    changes.push(`Cleaned invalid entries in ${path.basename(configPath)}`);
+  }
+}
+
+/**
+ * Fix Babel config inside package.json
+ */
+async function fixBabelInPackageJson(pkgPath: string, changes: string[]): Promise<void> {
+  const pkg = await fs.readJson(pkgPath);
+
+  if (!pkg.babel || typeof pkg.babel !== 'object') {
+    return;
+  }
+
+  let modified = false;
+
+  // Fix plugins array
+  if (Array.isArray(pkg.babel.plugins)) {
+    const originalLength = pkg.babel.plugins.length;
+    pkg.babel.plugins = pkg.babel.plugins.filter((plugin: unknown) => {
+      return plugin !== null && plugin !== undefined && plugin !== false && plugin !== '';
+    });
+    if (pkg.babel.plugins.length !== originalLength) {
+      modified = true;
+    }
+  }
+
+  // Fix presets array
+  if (Array.isArray(pkg.babel.presets)) {
+    const originalLength = pkg.babel.presets.length;
+    pkg.babel.presets = pkg.babel.presets.filter((preset: unknown) => {
+      return preset !== null && preset !== undefined && preset !== false && preset !== '';
+    });
+    if (pkg.babel.presets.length !== originalLength) {
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    await fs.writeJson(pkgPath, pkg, { spaces: 2 });
+    changes.push('Fixed invalid Babel entries in package.json');
+  }
+}
+

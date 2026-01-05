@@ -2,7 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-01-05
+
+### 🚀 Features (新特性)
+
+- **PWA Support (PWA 支持)**:
+  - Added PWA generation and export capabilities to builders.
+  - Generate installable web versions alongside APK builds.
+- **Android Permission Selection (Android 权限选择)**:
+  - New permission selection UI for customizing Android permissions.
+  - Inject chosen permissions into the build process.
+  - Default includes INTERNET access with optional additional permissions.
+- **Expo Project Support (Expo 项目支持)**:
+  - Added Expo project fixer to set web output to 'single' for offline APK compatibility.
+- **Tailwind Typography Plugin (Tailwind Typography 插件)**:
+  - Automatically configure `@tailwindcss/typography` plugin for generated and fixed projects.
+- **Enhanced Directory Name Handling (增强的目录名处理)**:
+  - Convert non-ASCII characters to pinyin for directory names.
+  - Ensure ASCII-safe names for Java/Gradle compatibility.
+- **Kotlin Duplicate Class Fix (Kotlin 重复类修复)**:
+  - Implement `patchKotlinDuplicateClasses` function to modify build.gradle.
+  - Prevent Kotlin stdlib duplicate-class errors by excluding legacy JDK7/8 artifacts.
+- **Logging Improvements (日志改进)**:
+  - Added `LOGS_DIR` environment variable to Docker Compose configuration.
+  - Improved logging management capabilities.
+- **Gradle Wrapper Enhancement (Gradle Wrapper 增强)**:
+  - Export `ensureGradleWrapper` function for reuse in React builder.
+  - Enhanced Gradle setup logic to check for both wrapper script and JAR existence.
+
+### 🐛 Fixes (修复)
+
+- **Babel Configuration (Babel 配置)**:
+  - Remove invalid null/undefined/false entries from Babel config files.
+  - Clean up package.json plugins/presets arrays.
+- **ZIP Parsing (ZIP 解析)**:
+  - Improve zip file content parsing in `listZipContents` function.
+  - Replace regex with whitespace splitting for better cross-platform compatibility.
+- **Error Handling (错误处理)**:
+  - Enhanced error handling for build job creation.
+  - Implement conditional cleanup of uploaded files.
+
 ## [2.2.0] - 2025-12-09
+
 
 ### 🚀 Features (新特性)
 

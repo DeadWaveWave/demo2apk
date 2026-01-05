@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Stars](https://img.shields.io/github/stars/DeadWaveWave/demo2apk?style=social)
-![Version](https://img.shields.io/badge/version-2.2.0-green)
+![Version](https://img.shields.io/badge/version-2.3.0-green)
 
 [中文文档](README_CN.md)
 
@@ -30,6 +30,8 @@ Hope this helps! If you find it useful, please ⭐ star this repo!
 
 *   **🎨 Web Interface**: Immersive "Dark Engineering Blueprint" style UI for managing builds.
 *   **✏️ Customization**: Support setting custom **App Name**, **App Version** (e.g., 1.0.0), and **App Icon** during upload.
+*   **🔐 Android Permissions**: Customize Android permissions via UI - select exactly which permissions your app needs (defaults to INTERNET only).
+*   **📱 PWA Support**: Optionally generate an installable **Progressive Web App** alongside your APK for web deployment.
 *   **📋 Build History**: Automatically saves recent builds and supports **session restoration** after page refresh.
 *   **🧠 Intelligent Detection**: Automatically detects file types (HTML/React/ZIP) and chooses the optimal build strategy.
 *   **⏳ Smart Queuing**: Handles concurrent builds with a real-time queue system and progress feedback.
@@ -81,7 +83,12 @@ mkdir -p ~/demo2apk && cd ~/demo2apk
 # 2. Download deployment config
 curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/docker-compose.deploy.yml
 
-# 3. Start services
+# 3. (Optional) Configure environment variables
+curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/.env.deploy.example
+mv .env.deploy.example .env
+# Edit .env to customize settings (rate limits, PWA, resource limits, etc.)
+
+# 4. Start services
 docker compose -f docker-compose.deploy.yml up -d
 ```
 

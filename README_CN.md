@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Stars](https://img.shields.io/github/stars/DeadWaveWave/demo2apk?style=social)
-![Version](https://img.shields.io/badge/version-2.2.0-green)
+![Version](https://img.shields.io/badge/version-2.3.0-green)
 
 **将你的 Vibe Coding 创意瞬间转化为可运行的 Android App。**
 
@@ -30,11 +30,12 @@ Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是�
 
 *   **🎨 Web 界面支持**：沉浸式体验构建过程，支持**暗黑工程蓝图风格**。
 *   **✏️ 个性化定制**：支持设置**自定义应用名称**、**版本号**和上传**应用图标**。
+*   **🔐 Android 权限配置**：通过 UI 自定义 Android 权限 - 精确选择应用所需权限（默认仅包含网络访问）。
+*   **📱 PWA 支持**：可选择同时生成可安装的**渐进式 Web 应用**，方便网页部署。
 *   **📋 构建历史记录**：自动保存最近构建记录，支持刷新页面后**自动恢复**构建状态。
 *   **🧠 智能识别引擎**：自动检测文件类型（HTML/React/ZIP）并匹配最佳构建策略，无需人工干预。
 *   **⏳ 智能排队系统**：支持多任务并发控制与排队等待，实时显示队列位置。
 *   **🔗 便捷分享**：构建完成后自动生成可分享的下载链接。
-*   **📲 PWA 发布（可选）**：构建时可额外导出可安装的 PWA 预览站点（推荐独立子域隔离）。
 *   **⚡️ 极速构建**：优化后的云端流水线，分分钟交付 APK。
 *   **🌐 灵活构建模式**：
     *   **单文件模式**：支持上传 `.html`, `.js`, `.jsx`, `.ts`, `.tsx`，自动识别 React 组件并包装。
@@ -42,7 +43,7 @@ Demo2APK 是专为 Vibe Coding 用户打造的一键打包工具。无论你是�
     *   **ZIP 压缩包模式**：智能区分 **React/Vite 项目**（执行 npm 构建）与 **HTML 多文件项目**（直接打包）。
 *   **🧠 智能离线**：自动处理 CDN 资源和 JSX 编译，确保 App 在离线环境下流畅运行。
 *   **🛡️ 智能限流**：合理的资源分配策略，支持开发模式下关闭限流。
-*   **🧹 自动清理**：构建产物保留 2 小时后自动清理，保护隐私并节省空间。
+*   **🧹 自动清理**：构建产物保留 2 小时后自动清理，保护隐私并节省空间.
 
 ## ⚠️ React 项目：避免白屏问题
 
@@ -82,7 +83,12 @@ mkdir -p ~/demo2apk && cd ~/demo2apk
 # 2. 下载部署配置
 curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/docker-compose.deploy.yml
 
-# 3. 启动服务
+# 3. (可选) 配置环境变量
+curl -O https://raw.githubusercontent.com/DeadWaveWave/demo2apk/main/.env.deploy.example
+mv .env.deploy.example .env
+# 编辑 .env 文件自定义配置（限流、PWA、资源限制等）
+
+# 4. 启动服务
 docker compose -f docker-compose.deploy.yml up -d
 ```
 

@@ -10,6 +10,7 @@ import { needsOfflineify, offlineifyHtml } from '../utils/offlineify.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 import { getFullPermissionName, DEFAULT_PERMISSIONS, validatePermissions } from '../utils/android-permissions.js';
 import { addPwaSupport, type PwaExportResult } from '../utils/pwa.js';
+import { runUnzip } from '../utils/unzip.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -377,7 +378,7 @@ export async function ensureGradleWrapper(
 
       await execa('curl', ['-L', GRADLE_DIST_URL, '-o', tmpZip]);
       await fs.ensureDir(path.dirname(gradleDir));
-      await execa('unzip', ['-q', tmpZip, '-d', path.dirname(gradleDir)]);
+      await runUnzip(['-q', tmpZip, '-d', path.dirname(gradleDir)]);
       await fs.remove(tmpZip);
     }
 
@@ -695,7 +696,7 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     // Extract ZIP to temp location
     const extractDir = path.join(workDir, 'extracted');
     await fs.ensureDir(extractDir);
-    await execa('unzip', ['-q', zipPath, '-d', extractDir]);
+    await runUnzip(['-q', zipPath, '-d', extractDir]);
 
     // Find the actual project root
     let projectDir = extractDir;

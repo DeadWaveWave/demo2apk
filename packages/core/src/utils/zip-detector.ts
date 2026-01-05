@@ -9,9 +9,9 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
-import { execa } from 'execa';
+import { runUnzip } from './unzip.js';
 
-export type ZipProjectType = 
+export type ZipProjectType =
   | 'react-project'    // Has package.json with React deps, needs npm install && build
   | 'html-project'     // Has index.html + assets, no build needed
   | 'html-single'      // Single HTML file only
@@ -44,7 +44,13 @@ interface FileEntry {
  */
 async function listZipContents(zipPath: string): Promise<FileEntry[]> {
   try {
-    const { stdout } = await execa('unzip', ['-l', zipPath]);
+    const { stdout } = await runUnzip(['-l', zipPath]);
+
+    // Handle stdout being undefined or non-string
+    if (!stdout || typeof stdout !== 'string') {
+      return [];
+    }
+
     const lines = stdout.split('\n');
     const entries: FileEntry[] = [];
 
@@ -76,7 +82,7 @@ async function listZipContents(zipPath: string): Promise<FileEntry[]> {
         }
       }
     }
-    
+
     return entries;
   } catch {
     return [];
@@ -88,11 +94,11 @@ async function listZipContents(zipPath: string): Promise<FileEntry[]> {
  */
 async function readFileFromZip(zipPath: string, filePath: string): Promise<string | null> {
   const tempDir = path.join(os.tmpdir(), `zip-read-${crypto.randomBytes(4).toString('hex')}`);
-  
+
   try {
     await fs.ensureDir(tempDir);
-    await execa('unzip', ['-q', '-o', zipPath, filePath, '-d', tempDir]);
-    
+    await runUnzip(['-q', '-o', zipPath, filePath, '-d', tempDir]);
+
     const extractedPath = path.join(tempDir, filePath);
     if (await fs.pathExists(extractedPath)) {
       return await fs.readFile(extractedPath, 'utf8');
@@ -101,7 +107,7 @@ async function readFileFromZip(zipPath: string, filePath: string): Promise<strin
   } catch {
     return null;
   } finally {
-    await fs.remove(tempDir).catch(() => {});
+    await fs.remove(tempDir).catch(() => { });
   }
 }
 
@@ -114,13 +120,13 @@ function findProjectRoot(entries: FileEntry[]): string {
     .filter(e => !e.isDirectory)
     .map(e => e.path)
     .filter(p => !p.startsWith('__MACOSX/') && !p.includes('/__MACOSX/'));
-  
+
   if (files.length === 0) return '';
-  
+
   // Check if there's a single root directory
   const topLevelDirs = new Set<string>();
   const topLevelFiles: string[] = [];
-  
+
   for (const file of files) {
     const parts = file.split('/').filter(Boolean);
     if (parts.length > 1) {
@@ -129,20 +135,20 @@ function findProjectRoot(entries: FileEntry[]): string {
       topLevelFiles.push(parts[0]);
     }
   }
-  
+
   // If all files are under a single directory, that's the root
   if (topLevelDirs.size === 1 && topLevelFiles.length === 0) {
     const rootDir = Array.from(topLevelDirs)[0];
-    
+
     // Check if there are deeper nested roots (e.g., project-name/src/)
     // by looking for package.json or index.html
     const hasRootPkg = files.some(f => f === `${rootDir}/package.json`);
     const hasRootHtml = files.some(f => f === `${rootDir}/index.html`);
-    
+
     if (hasRootPkg || hasRootHtml) {
       return rootDir;
     }
-    
+
     // Check one level deeper
     const secondLevelDirs = new Set<string>();
     for (const file of files) {
@@ -151,20 +157,20 @@ function findProjectRoot(entries: FileEntry[]): string {
         secondLevelDirs.add(`${parts[0]}/${parts[1]}`);
       }
     }
-    
+
     if (secondLevelDirs.size === 1) {
       const deepRoot = Array.from(secondLevelDirs)[0];
       const hasDeepPkg = files.some(f => f === `${deepRoot}/package.json`);
       const hasDeepHtml = files.some(f => f === `${deepRoot}/index.html`);
-      
+
       if (hasDeepPkg || hasDeepHtml) {
         return deepRoot;
       }
     }
-    
+
     return rootDir;
   }
-  
+
   // Files are at root level
   return '';
 }
@@ -206,24 +212,24 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
   // Find project root
   result.projectRoot = findProjectRoot(entries);
   const rootPrefix = result.projectRoot ? `${result.projectRoot}/` : '';
-  
+
   // Get file statistics
   const files = entries.filter(e => !e.isDirectory);
   result.fileCount = files.length;
-  
+
   // Categorize files (relative to project root)
   for (const entry of files) {
-    const relativePath = entry.path.startsWith(rootPrefix) 
+    const relativePath = entry.path.startsWith(rootPrefix)
       ? entry.path.slice(rootPrefix.length)
       : entry.path;
-    
+
     // Skip node_modules and hidden files
     if (relativePath.includes('node_modules/') || relativePath.startsWith('.')) {
       continue;
     }
-    
+
     const ext = path.extname(relativePath).toLowerCase();
-    
+
     if (ext === '.html' || ext === '.htm') {
       result.htmlFiles.push(relativePath);
     } else if (ext === '.js' || ext === '.jsx' || ext === '.ts' || ext === '.tsx') {
@@ -238,7 +244,7 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
   const indexHtmlPath = `${rootPrefix}index.html`;
   const viteConfigJs = `${rootPrefix}vite.config.js`;
   const viteConfigTs = `${rootPrefix}vite.config.ts`;
-  
+
   result.hasPackageJson = files.some(f => f.path === packageJsonPath);
   result.hasIndexHtml = files.some(f => f.path === indexHtmlPath);
   result.hasViteConfig = files.some(f => f.path === viteConfigJs || f.path === viteConfigTs);
@@ -249,14 +255,14 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
     if (pkgContent) {
       try {
         const pkg = JSON.parse(pkgContent);
-        
+
         // Check for React dependencies
         const deps = { ...pkg.dependencies, ...pkg.devDependencies };
         result.hasReactDeps = !!(deps.react || deps['react-dom'] || deps['@vitejs/plugin-react']);
-        
+
         // Check for build script
         result.hasBuildScript = !!(pkg.scripts?.build);
-        
+
         if (result.hasReactDeps) {
           result.hints.push('React dependencies found in package.json');
         }
@@ -285,14 +291,14 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
     result.type = 'react-project';
     result.entryPoint = packageJsonPath;
     result.confidence = 90;
-    
+
     if (result.hasReactDeps) {
       result.hints.push('React dependencies detected');
     }
     if (result.hasBuildScript) {
       result.hints.push('Build script detected');
     }
-  } 
+  }
   // Priority 3: Static HTML project
   else if (result.hasIndexHtml) {
     // Has index.html but no package.json (or no build deps)
@@ -306,7 +312,7 @@ export async function detectZipProjectType(zipPath: string): Promise<ZipDetectio
       result.type = 'html-project';
       result.confidence = 85;
       result.hints.push('Multi-file HTML project detected');
-      
+
       if (result.jsFiles.length > 0) {
         result.hints.push(`${result.jsFiles.length} JavaScript files found`);
       }
@@ -361,4 +367,3 @@ export function getRecommendedBuildApproach(type: ZipProjectType): string {
       return 'Manual inspection required';
   }
 }
-

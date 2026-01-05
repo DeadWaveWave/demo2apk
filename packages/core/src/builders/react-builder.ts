@@ -7,6 +7,7 @@ import { pinyin } from 'pinyin-pro';
 import { detectAndroidSdk, setupAndroidEnv } from '../utils/android-sdk.js';
 import { fixExpoProject } from '../utils/expo-project-fixer.js';
 import { fixViteProject, needsViteProjectFix } from '../utils/react-project-fixer.js';
+import { runUnzip } from '../utils/unzip.js';
 import { generateAppId, ensureGradleWrapper } from './html-builder.js';
 import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 import { getFullPermissionName, validatePermissions } from '../utils/android-permissions.js';
@@ -454,7 +455,7 @@ export async function buildReactToApk(options: ReactBuildOptions): Promise<Build
     onProgress?.('Extracting project...', 10);
 
     // Extract ZIP
-    await execa('unzip', ['-q', zipPath, '-d', workDir]);
+    await runUnzip(['-q', zipPath, '-d', workDir]);
 
     // Find project root (directory containing package.json)
     let projectDir = workDir;

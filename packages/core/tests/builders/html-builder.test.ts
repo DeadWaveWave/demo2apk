@@ -66,6 +66,12 @@ describe('HtmlBuilder', () => {
       expect(result).toContain('Content-Security-Policy');
     });
 
+    it('should allow blob URLs in default CSP', () => {
+      const html = '<html><head></head><body></body></html>';
+      const result = prepareHtmlForCordova(html);
+      expect(result).toContain('blob:');
+    });
+
     it('should not duplicate CSP meta tag', () => {
       const html = '<html><head><meta http-equiv="Content-Security-Policy" content="existing"></head><body></body></html>';
       const result = prepareHtmlForCordova(html);
@@ -86,6 +92,19 @@ describe('HtmlBuilder', () => {
       expect(matches).toHaveLength(1);
     });
 
+    it('should add demo2apk runtime script reference', () => {
+      const html = '<html><head></head><body></body></html>';
+      const result = prepareHtmlForCordova(html);
+      expect(result).toContain('demo2apk-runtime.js');
+    });
+
+    it('should not duplicate demo2apk runtime script reference', () => {
+      const html = '<html><head></head><body><script src="demo2apk-runtime.js"></script></body></html>';
+      const result = prepareHtmlForCordova(html);
+      const matches = result.match(/demo2apk-runtime\.js/g);
+      expect(matches).toHaveLength(1);
+    });
+
     it('should handle complex HTML with all tags needed', () => {
       const html = `<!DOCTYPE html>
 <html>
@@ -103,4 +122,3 @@ describe('HtmlBuilder', () => {
     });
   });
 });
-

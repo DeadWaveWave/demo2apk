@@ -11,6 +11,7 @@ import { shouldCleanupBuildArtifacts } from '../utils/build-env.js';
 import { getFullPermissionName, DEFAULT_PERMISSIONS, validatePermissions } from '../utils/android-permissions.js';
 import { addPwaSupport, type PwaExportResult } from '../utils/pwa.js';
 import { runUnzip } from '../utils/unzip.js';
+import { injectDemo2apkRuntimeScriptTag, writeDemo2apkRuntimeScript } from '../utils/webview-compat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -323,7 +324,7 @@ export function prepareHtmlForCordova(htmlContent: string): string {
   if (!html.includes('Content-Security-Policy')) {
     html = html.replace(
       /<head([^>]*)>/i,
-      `<head$1>\n    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: gap: content:">`
+      `<head$1>\n    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: gap: content:">`
     );
   }
 
@@ -332,7 +333,204 @@ export function prepareHtmlForCordova(htmlContent: string): string {
     html = html.replace('</body>', '    <script src="cordova.js"></script>\n</body>');
   }
 
+  // Add demo2apk runtime fixes (file picker + blob/data download bridge)
+  html = injectDemo2apkRuntimeScriptTag(html);
+
   return html;
+}
+
+async function patchCordovaAndroidMainActivityForBlobSave(
+  androidDir: string,
+  appId: string,
+  onProgress?: (message: string, percent?: number) => void,
+  progressPercent?: number
+): Promise<void> {
+  const javaRoot = path.join(androidDir, 'app', 'src', 'main', 'java');
+  const expectedPath = path.join(javaRoot, ...appId.split('.'), 'MainActivity.java');
+
+  let mainActivityPath = expectedPath;
+  if (!(await fs.pathExists(mainActivityPath))) {
+    // Fallback: locate MainActivity.java if package path differs
+    const stack: string[] = [javaRoot];
+    let found: string | undefined;
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(full);
+        } else if (entry.isFile() && entry.name === 'MainActivity.java') {
+          found = full;
+          break;
+        }
+      }
+      if (found) break;
+    }
+    if (!found) return;
+    mainActivityPath = found;
+  }
+
+  const existing = await fs.readFile(mainActivityPath, 'utf8');
+  if (existing.includes('Demo2APK_blob_save_marker')) {
+    return;
+  }
+
+  const pkgMatch = existing.match(/^\s*package\s+([a-zA-Z0-9_.]+)\s*;/m);
+  const packageName = pkgMatch?.[1] || appId;
+
+  const next = `package ${packageName};
+
+// Demo2APK_blob_save_marker: enable saving blob/data downloads via Android SAF
+
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
+
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+
+import org.apache.cordova.CordovaActivity;
+
+public class MainActivity extends CordovaActivity {
+    private static final int DEMO2APK_CREATE_DOCUMENT_REQUEST = 54321;
+
+    private byte[] demo2apkPendingBytes = null;
+    private String demo2apkPendingMimeType = null;
+    private String demo2apkPendingFileName = null;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        loadUrl(launchUrl);
+
+        try {
+            WebView webView = (WebView) appView.getView();
+            webView.addJavascriptInterface(new Demo2APKBlobDownloader(), "Demo2APKBlobDownloader");
+        } catch (Exception ignored) {
+            // Ignore: app still works without the bridge
+        }
+    }
+
+    private class Demo2APKBlobDownloader {
+        @JavascriptInterface
+        public void saveBase64Data(String dataUrl, String fileName) {
+            ParsedData parsed = parseDataUrl(dataUrl);
+            if (parsed == null || parsed.bytes == null) {
+                return;
+            }
+
+            demo2apkPendingBytes = parsed.bytes;
+            demo2apkPendingMimeType = parsed.mimeType != null ? parsed.mimeType : "*/*";
+            demo2apkPendingFileName = sanitizeFileName(fileName, demo2apkPendingMimeType);
+
+            runOnUiThread(() -> {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType(demo2apkPendingMimeType != null ? demo2apkPendingMimeType : "*/*");
+                    intent.putExtra(Intent.EXTRA_TITLE, demo2apkPendingFileName != null ? demo2apkPendingFileName : "download");
+                    startActivityForResult(intent, DEMO2APK_CREATE_DOCUMENT_REQUEST);
+                } catch (Exception ignored) {
+                    // Ignore
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == DEMO2APK_CREATE_DOCUMENT_REQUEST) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && demo2apkPendingBytes != null) {
+                Uri uri = data.getData();
+                try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    if (out != null) {
+                        out.write(demo2apkPendingBytes);
+                        out.flush();
+                    }
+                } catch (Exception ignored) {
+                    // Ignore
+                }
+            }
+
+            demo2apkPendingBytes = null;
+            demo2apkPendingMimeType = null;
+            demo2apkPendingFileName = null;
+            return;
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private static class ParsedData {
+        public final byte[] bytes;
+        public final String mimeType;
+
+        public ParsedData(byte[] bytes, String mimeType) {
+            this.bytes = bytes;
+            this.mimeType = mimeType;
+        }
+    }
+
+    private static ParsedData parseDataUrl(String dataUrl) {
+        if (dataUrl == null || !dataUrl.startsWith("data:")) return null;
+        int comma = dataUrl.indexOf(',');
+        if (comma == -1) return null;
+
+        String header = dataUrl.substring(5, comma);
+        String dataPart = dataUrl.substring(comma + 1);
+
+        String mimeType = "application/octet-stream";
+        if (header != null && !header.isEmpty()) {
+            String[] headerParts = header.split(";", 2);
+            if (headerParts.length > 0 && headerParts[0] != null && !headerParts[0].isEmpty()) {
+                mimeType = headerParts[0];
+            }
+        }
+
+        boolean base64 = header.contains(";base64");
+        try {
+            byte[] bytes;
+            if (base64) {
+                bytes = Base64.decode(dataPart, Base64.DEFAULT);
+            } else {
+                bytes = Uri.decode(dataPart).getBytes(StandardCharsets.UTF_8);
+            }
+            return new ParsedData(bytes, mimeType);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String sanitizeFileName(String requested, String mimeType) {
+        String name = (requested == null || requested.trim().isEmpty()) ? "download" : requested.trim();
+        name = name.replaceAll("[\\\\\\\\/:*?\\\"<>|]", "_");
+
+        if (!name.contains(".")) {
+            String ext = extensionFromMime(mimeType);
+            if (!ext.isEmpty()) {
+                name = name + ext;
+            }
+        }
+
+        return name;
+    }
+
+    private static String extensionFromMime(String mimeType) {
+        if (mimeType == null) return "";
+        String m = mimeType.toLowerCase();
+        if (m.contains("json")) return ".json";
+        if (m.startsWith("text/")) return ".txt";
+        return "";
+    }
+}
+`;
+
+  await fs.writeFile(mainActivityPath, next, 'utf8');
+  onProgress?.('Patched Android MainActivity for blob/data export', progressPercent);
 }
 
 /**
@@ -556,6 +754,7 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     let finalHtml = await fs.readFile(indexPath, 'utf8');
     finalHtml = prepareHtmlForCordova(finalHtml);
     await fs.writeFile(indexPath, finalHtml);
+    await writeDemo2apkRuntimeScript(wwwDir);
 
     onProgress?.('Syncing resources to Android platform...', 55);
 
@@ -563,6 +762,8 @@ export async function buildHtmlToApk(options: HtmlBuildOptions): Promise<BuildRe
     await execa('cordova', ['prepare', 'android', '--no-telemetry'], {
       cwd: workDir,
     });
+
+    await patchCordovaAndroidMainActivityForBlobSave(path.join(workDir, 'platforms', 'android'), appId, onProgress, 58);
 
     onProgress?.('Setting up Gradle...', 60);
 
@@ -835,12 +1036,15 @@ export async function buildHtmlProjectToApk(options: HtmlProjectBuildOptions): P
     let indexHtml = await fs.readFile(path.join(wwwDir, 'index.html'), 'utf8');
     indexHtml = prepareHtmlForCordova(indexHtml);
     await fs.writeFile(path.join(wwwDir, 'index.html'), indexHtml);
+    await writeDemo2apkRuntimeScript(wwwDir);
 
     onProgress?.('Syncing resources to Android platform...', 60);
 
     await execa('cordova', ['prepare', 'android', '--no-telemetry'], {
       cwd: cordovaDir,
     });
+
+    await patchCordovaAndroidMainActivityForBlobSave(path.join(cordovaDir, 'platforms', 'android'), appId, onProgress, 62);
 
     onProgress?.('Setting up Gradle...', 65);
 
